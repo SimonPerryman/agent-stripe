@@ -1,0 +1,7 @@
+bin/
+*.local.*
+coverage.out
+.idea/
+.vscode/
+.DS_Store
+# Note: ~/.config/agent-stripe/ is user-side, not in the repo.
