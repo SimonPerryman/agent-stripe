@@ -6,26 +6,26 @@ Modeled on [agent-mongo](https://github.com/shhac/agent-mongo) and [agent-dd](ht
 
 ## Status
 
-🚧 Pre-release. Nothing is implemented yet — this README documents the intended surface so the design is reviewable before code lands.
+🚧 Pre-release. Phase 1 (scaffolding + `account`, `customer`, `event` commands) is implemented; Phases 2–4 are still planned. See [plans/v1/](plans/v1/).
 
 Legend: ✅ shipped · 🚧 in progress · ⏳ planned
 
 ## Features
 
-### Account management ⏳
+### Account management ✅
 Store API keys locally, switch between accounts, never echo secrets back to the agent.
 
 | Command | Status | Notes |
 |---|---|---|
-| `account add <alias> [--key] [--form] [--default]` | ⏳ | `--form` opens an OS dialog so the key never enters the agent transcript |
+| `account add <alias> [--key] [--form] [--default]` | ✅ | `--form` opens an OS dialog (macOS only in v1) so the key never enters the agent transcript |
 | `account update <alias> [--key] [--form]` | ⏳ | |
-| `account remove <alias>` | ⏳ | |
-| `account list` | ⏳ | Keys redacted; shows `mode: test \| live` from key prefix |
-| `account test [alias]` | ⏳ | `GET /v1/account` — verifies key works |
-| `account set-default <alias>` | ⏳ | |
+| `account remove <alias>` | ✅ | |
+| `account list` | ✅ | Keys redacted; shows `mode: test \| live` from key prefix |
+| `account test [alias]` | ✅ | `GET /v1/account` — verifies key works |
+| `account set-default <alias>` | ✅ | |
 
-### Customers ⏳
-| `customer get <id>` · `customer list` · `customer search --query` | ⏳ |
+### Customers 🚧
+| `customer get <id>` ✅ · `customer list` ✅ · `customer search --query` ⏳ |
 
 ### Payments ⏳
 | Resource | Commands | Status |
@@ -45,8 +45,11 @@ Store API keys locally, switch between accounts, never echo secrets back to the 
 | `product` | `get`, `list` | ⏳ |
 | `price` | `get`, `list` | ⏳ |
 
-### Events ⏳
-| `event get <id>` · `event list [--type] [--created] [--object-id]` | ⏳ |
+### Events 🚧
+| `event list [--type] [--created-gt] [--created-lt] [--related <id>]` ✅ · `event get <id>` ⏳ |
+
+`--related <id>` is the agent's core debugging tool: client-side filter over recent events
+matching `data.object.id`. Response includes a `scan` envelope (`scanned`, `matched`, `truncated`).
 
 The core debugging tool — lets an agent reconstruct what happened to an object over time.
 

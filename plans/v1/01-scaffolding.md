@@ -1,6 +1,6 @@
 # Phase 1 — Scaffolding
 
-Status: pending
+Status: done
 
 ## Goal
 
@@ -111,3 +111,4 @@ Phase 1 is also where the **read-only chokepoint** (`internal/stripe/readonly.go
 ## Log
 
 - 2026-05-23 — Created plan
+- 2026-05-23 — Implemented. Go module scaffolded against stripe-go v85 (API version `2026-04-22.dahlia`). Read-only HTTP transport (`internal/stripe/readonly.go`) wraps the SDK backend — non-GET requests fail before the network. Envelope + truncation + null-pruning in `internal/output/`; atomic config writes + keychain wrapper in `internal/config/`. Dispatcher in `internal/cli/` resolves account from `-a` > `AGENT_STRIPE_ACCOUNT` > config default, then enforces the live-mode gate (exits 3 without `--live`). Commands shipped: `account add|remove|list|set-default|test`, `customer get|list`, `event list` with `--related` (client-side filter, scan envelope). SIGINT cancels the context and emits `{"error":"interrupted"}` to stderr. Tests pass: truncation/expand/prune in output, save/load round-trip + DeriveMode in config, GET/POST/PUT/DELETE behaviour for the read-only transport, and an httptest-backed `/v1/account` round trip through the actual SDK client. Open questions resolved as: stdin pipe accepted when not a TTY; KeychainRef is a UUID; envelope `apiVersion` is the compile-time pin (`stripe.APIVersion` re-exported as `agentstripe.PinnedAPIVersion`). `--form` is macOS-only in v1 (Linux/Windows return a clear error pointing at `--key`). Integration tests gated by `STRIPE_TEST_KEY` not yet added — deferred to Phase 2 since the httptest coverage already exercises the full stack.
