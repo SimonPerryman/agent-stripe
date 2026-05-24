@@ -30,6 +30,12 @@ Subcommands:
 The --type filter on transactions is high-signal: "charge", "refund",
 "payout", "stripe_fee", "application_fee" are common starting points.
 
+Note: Stripe does not offer a Search API for balance transactions — use
+transactions with --type / --payout / --currency / --created-gt/lt filters.
+
+Streaming: pass --stream (top-level) on transactions to emit NDJSON over pages
+until --limit or exhausted. get is a single snapshot — not streamable.
+
 Common --expand-stripe paths (transactions):
   source — fetches the originating object (charge, refund, payout, …)`
 

@@ -34,6 +34,12 @@ Debugging tips:
 Search query syntax: https://docs.stripe.com/search#search-query-language
 Example: charge search --query 'amount>5000 AND status:"succeeded"'
 
+Pagination: list uses --starting-after (a ch_ id); search uses --page (opaque
+next_page token). Not interchangeable.
+
+Streaming: pass --stream (top-level) on list/search to emit NDJSON over pages
+until --limit or exhausted.
+
 Common --expand-stripe paths:
   customer, balance_transaction, application_fee, transfer, invoice`
 

@@ -30,6 +30,12 @@ Subcommands:
 Search query syntax: https://docs.stripe.com/search#search-query-language
 Example: product search --query 'active:"true" AND name~"shirt"'
 
+Pagination: list uses --starting-after (a prod_ id); search uses --page (opaque
+next_page token). Not interchangeable.
+
+Streaming: pass --stream (top-level) on list/search to emit NDJSON over pages
+until --limit or exhausted.
+
 Notes:
   --active is tri-state: omit for no filter, --active=true for active only,
   --active=false for archived only.

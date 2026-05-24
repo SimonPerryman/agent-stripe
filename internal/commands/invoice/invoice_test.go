@@ -41,8 +41,10 @@ func TestInvoiceList_StatusAndSubscriptionPassthrough(t *testing.T) {
 
 // Locks in §5: lines.data[].description follows the same path-agnostic
 // truncation rule as every other string field — truncated by default,
-// preserved under --full. If per-field path overrides land in Phase 4,
-// this test gets revisited.
+// preserved under --full. Path-overrides shipped in Phase 4 §4; see
+// TestRenderExpandPathsSkipsOnlyMatchingPath in internal/output for the
+// opt-in --expand lines.data.description case. This test pins the
+// default-truncated behavior.
 const longDescription = "Custom invoice line for prorated usage covering the period from " +
 	"March 1 through May 24, including the upgrade from Basic to Pro on March 12, " +
 	"the seat add-on purchased on April 3, and the discount applied from coupon " +

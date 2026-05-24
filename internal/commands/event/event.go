@@ -36,7 +36,13 @@ Subcommands:
                                             line, one event per line, then a final
                                             {"_truncated":bool,"scanned":N,"matched":M}
                                             line. --max-scan still applies;
-                                            --limit caps matched count if set.`
+                                            --limit caps matched count if set.
+
+Note: Stripe does not offer a Search API for events — use list with
+--type / --created-gt/lt / --related filters.
+
+Streaming: pass --stream (top-level) on list to emit NDJSON over pages until
+--limit or exhausted. With --related, see the --related-specific behavior above.`
 
 func Run(ctx context.Context, opts *cli.GlobalOpts, args []string) error {
 	if len(args) == 0 {

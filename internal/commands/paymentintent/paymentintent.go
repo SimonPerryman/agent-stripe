@@ -38,6 +38,12 @@ Subcommands (cont.):
 Search query syntax: https://docs.stripe.com/search#search-query-language
 Example: payment-intent search --query 'status:"requires_action"'
 
+Pagination: list uses --starting-after (a pi_ id); search uses --page (opaque
+next_page token). Not interchangeable.
+
+Streaming: pass --stream (top-level) on list/search to emit NDJSON over pages
+until --limit or exhausted.
+
 Common --expand-stripe paths:
   latest_charge, customer, payment_method, latest_charge.balance_transaction`
 

@@ -29,6 +29,12 @@ Subcommands:
 Search query syntax: https://docs.stripe.com/search#search-query-language
 Example: subscription search --query 'status:"active" AND created>1735689600'
 
+Pagination: list uses --starting-after (a sub_ id); search uses --page (opaque
+next_page token). Not interchangeable.
+
+Streaming: pass --stream (top-level) on list/search to emit NDJSON over pages
+until --limit or exhausted.
+
 --status passes through verbatim to Stripe (active, past_due, canceled,
 trialing, incomplete, incomplete_expired, unpaid, paused, all). Note that the
 Stripe default is active-only — pass --status all to see canceled subs too.

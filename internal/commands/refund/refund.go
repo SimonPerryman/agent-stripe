@@ -27,6 +27,12 @@ Subcommands:
 
   Note: --charge and --payment-intent are mutually exclusive — pass at most one.
 
+Note: Stripe does not offer a Search API for refunds — use list with
+--charge / --payment-intent filters.
+
+Streaming: pass --stream (top-level) on list to emit NDJSON over pages until
+--limit or exhausted.
+
 Refund creation is NOT exposed here. This CLI is read-only; use the Stripe
 dashboard or a dedicated tool with audit trail for refunds.
 

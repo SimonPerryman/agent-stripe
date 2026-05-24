@@ -21,9 +21,10 @@ Subcommands:
 Resources: customer, charge, payment-intent, refund, dispute, balance,
            payout, event, subscription, invoice, product, price.
 
-This command does NOT hit Stripe. The field tree is reflected from stripe-go's
-struct definitions, and expandPaths is a hand-curated list mirroring the
-recommendations each resource's "usage" mentions. Use this when you want to
+This command does NOT hit Stripe — safe to run without -a / a configured
+account. The field tree is reflected from stripe-go's struct definitions, and
+the expandPaths output field is a hand-curated, machine-readable mirror of
+each resource's --expand-stripe recommendation. Use this when you want to
 know "what can I expand?" or "what fields exist on a subscription?" before
 spending an API call.`
 

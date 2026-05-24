@@ -26,6 +26,12 @@ Subcommands:
   evidence.* fields routinely exceed the default truncation cap (200 chars).
   When investigating a dispute, pass --full so the evidence narrative isn't cut.
 
+Note: Stripe does not offer a Search API for disputes — use list with
+--charge / --payment-intent filters.
+
+Streaming: pass --stream (top-level) on list to emit NDJSON over pages until
+--limit or exhausted.
+
 Recommended --expand-stripe paths:
   charge, payment_intent, charge.balance_transaction`
 

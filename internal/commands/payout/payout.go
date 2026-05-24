@@ -24,6 +24,12 @@ Subcommands:
        [--limit N] [--starting-after PO]    List payouts (cursor-paginated)
                                             --status: pending|paid|failed|canceled
 
+Note: Stripe does not offer a Search API for payouts — use list with
+--status / --destination / --created-gt/lt filters.
+
+Streaming: pass --stream (top-level) on list to emit NDJSON over pages until
+--limit or exhausted.
+
 Cross-reference: a payout's id appears as automatic_transfer_id on related
 balance transactions, so to find what's *inside* a payout, query
 ` + "`balance transactions --payout po_...`" + ` rather than expanding here.`

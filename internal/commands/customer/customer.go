@@ -27,7 +27,13 @@ Subcommands:
                                             next_page token, NOT a cus_ id)
 
 Search query syntax: https://docs.stripe.com/search#search-query-language
-Example: customer search --query 'email:"alice@example.com"'`
+Example: customer search --query 'email:"alice@example.com"'
+
+Pagination: list uses --starting-after (a cus_ id); search uses --page (opaque
+next_page token). Not interchangeable.
+
+Streaming: pass --stream (top-level) on list/search to emit NDJSON over pages
+until --limit or exhausted.`
 
 func Run(ctx context.Context, opts *cli.GlobalOpts, args []string) error {
 	if len(args) == 0 {

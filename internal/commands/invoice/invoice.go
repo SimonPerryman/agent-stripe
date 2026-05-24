@@ -30,6 +30,12 @@ Subcommands:
 Search query syntax: https://docs.stripe.com/search#search-query-language
 Example: invoice search --query 'total>10000 AND status:"open"'
 
+Pagination: list uses --starting-after (an in_ id); search uses --page (opaque
+next_page token). Not interchangeable.
+
+Streaming: pass --stream (top-level) on list/search to emit NDJSON over pages
+until --limit or exhausted.
+
 --status accepts draft, open, paid, uncollectible, void.
 
 lines.data[].description is what an agent reconciling a charge to a billing
@@ -42,7 +48,8 @@ Recommended --expand-stripe paths:
 
 Note: invoice preview (formerly upcoming) is not exposed in v1. The endpoint
 moved to POST /v1/invoices/create_preview in the pinned API version and the
-read-only chokepoint blocks POST. Tracked for Phase 4.`
+read-only chokepoint blocks POST; this is out of scope for v1 (read-only) and
+is v2 work.`
 
 func Run(ctx context.Context, opts *cli.GlobalOpts, args []string) error {
 	if len(args) == 0 {

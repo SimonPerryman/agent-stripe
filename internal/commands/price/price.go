@@ -31,6 +31,12 @@ Subcommands:
 Search query syntax: https://docs.stripe.com/search#search-query-language
 Example: price search --query 'product:"prod_123" AND active:"true"'
 
+Pagination: list uses --starting-after (a price_ id); search uses --page (opaque
+next_page token). Not interchangeable.
+
+Streaming: pass --stream (top-level) on list/search to emit NDJSON over pages
+until --limit or exhausted.
+
 Every price belongs to a product. When fetching a single price, pass
 --expand-stripe product to see the parent in the same response.
 
