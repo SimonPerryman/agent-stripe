@@ -7,8 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"os"
-	"strings"
+	"syscall"
 )
 
 // DefaultTruncateLength is the cap on string field length before truncation.
@@ -184,7 +183,7 @@ func Emit(w io.Writer, env Envelope) error {
 	enc := json.NewEncoder(w)
 	enc.SetEscapeHTML(false)
 	if err := enc.Encode(env); err != nil {
-		if isBrokenPipe(err) {
+		if isWriteEPIPE(err) {
 			return nil
 		}
 		return err
@@ -209,7 +208,7 @@ func NewStreamer(w io.Writer, hdr Envelope) (*Streamer, error) {
 	enc := json.NewEncoder(w)
 	enc.SetEscapeHTML(false)
 	if err := enc.Encode(hdr); err != nil {
-		if isBrokenPipe(err) {
+		if isWriteEPIPE(err) {
 			return nil, errBrokenPipe
 		}
 		return nil, err
@@ -221,7 +220,7 @@ func NewStreamer(w io.Writer, hdr Envelope) (*Streamer, error) {
 // closed the pipe; callers should treat that as a clean exit.
 func (s *Streamer) Write(record any) error {
 	if err := s.enc.Encode(record); err != nil {
-		if isBrokenPipe(err) {
+		if isWriteEPIPE(err) {
 			return errBrokenPipe
 		}
 		return err
@@ -248,13 +247,9 @@ func IsBrokenPipe(err error) bool {
 	return errors.Is(err, errBrokenPipe)
 }
 
-func isBrokenPipe(err error) bool {
-	if err == nil {
-		return false
-	}
-	// On POSIX, write to closed pipe is EPIPE wrapped by os.PathError.
-	if pe, ok := err.(*os.PathError); ok {
-		return strings.Contains(pe.Err.Error(), "broken pipe")
-	}
-	return strings.Contains(err.Error(), "broken pipe")
+// isWriteEPIPE reports whether err is the OS-level EPIPE raised by writing
+// to a closed pipe (e.g. downstream `| head` exited). Distinct from the
+// exported IsBrokenPipe, which checks for our own errBrokenPipe sentinel.
+func isWriteEPIPE(err error) bool {
+	return errors.Is(err, syscall.EPIPE)
 }

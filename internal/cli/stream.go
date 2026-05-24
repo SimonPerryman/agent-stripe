@@ -84,13 +84,16 @@ func streamIter(_ context.Context, opts *GlobalOpts, _ int, drain func(emit func
 		}
 		return err
 	}
-	emit := pacedEmit(func(rec map[string]any) error {
-		rendered, rErr := RenderForStream(rec, opts)
-		if rErr != nil {
-			return rErr
-		}
-		return streamer.Write(rendered)
-	}, opts.RateLimit)
+	p := newPacer(opts.RateLimit)
+	emit := func(rec map[string]any) error {
+		return p.emit(rec, func(rec map[string]any) error {
+			rendered, rErr := RenderForStream(rec, opts)
+			if rErr != nil {
+				return rErr
+			}
+			return streamer.Write(rendered)
+		})
+	}
 	_, err = drain(emit)
 	if output.IsBrokenPipe(err) {
 		return nil
@@ -98,27 +101,36 @@ func streamIter(_ context.Context, opts *GlobalOpts, _ int, drain func(emit func
 	return err
 }
 
-// pacedEmit wraps inner so that calls are spaced at most rate*streamPageSize
-// per second — i.e. the implied HTTP-request rate stays at `rate` req/sec.
-// rate <= 0 disables pacing. The pacer never accumulates debt: if upstream
-// stalls for longer than one page-interval, the next call fires immediately
-// and the clock resets from there.
-func pacedEmit(inner func(map[string]any) error, rate float64) func(map[string]any) error {
+// pacer enforces a minimum interval between emit calls so that streamed
+// records flow at most rate*streamPageSize per second — i.e. the implied
+// HTTP-request rate stays at `rate` req/sec. Zero interval disables pacing.
+// Not goroutine-safe; the streaming loop in streamIter is single-goroutine
+// by design. The pacer never accumulates debt: if upstream stalls for longer
+// than one interval, the next call fires immediately and the clock resets.
+type pacer struct {
+	interval time.Duration
+	next     time.Time
+}
+
+func newPacer(rate float64) *pacer {
 	if rate <= 0 {
-		return inner
+		return &pacer{}
 	}
-	interval := time.Duration(float64(time.Second) / (rate * streamPageSize))
-	var next time.Time
-	return func(rec map[string]any) error {
+	return &pacer{interval: time.Duration(float64(time.Second) / (rate * streamPageSize))}
+}
+
+func (p *pacer) emit(rec map[string]any, inner func(map[string]any) error) error {
+	if p.interval > 0 {
 		now := time.Now()
-		if next.IsZero() {
-			next = now.Add(interval)
-		} else if now.Before(next) {
-			time.Sleep(next.Sub(now))
-			next = next.Add(interval)
-		} else {
-			next = now.Add(interval)
+		switch {
+		case p.next.IsZero():
+			p.next = now.Add(p.interval)
+		case now.Before(p.next):
+			time.Sleep(p.next.Sub(now))
+			p.next = p.next.Add(p.interval)
+		default:
+			p.next = now.Add(p.interval)
 		}
-		return inner(rec)
 	}
+	return inner(rec)
 }

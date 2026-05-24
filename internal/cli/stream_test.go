@@ -196,13 +196,14 @@ func captureCLIStdout(t *testing.T, fn func()) string {
 	return string(res.data)
 }
 
-func TestPacedEmit(t *testing.T) {
+func TestPacer(t *testing.T) {
 	t.Run("rate=0 is a no-op", func(t *testing.T) {
 		calls := 0
-		emit := pacedEmit(func(map[string]any) error { calls++; return nil }, 0)
+		p := newPacer(0)
+		inner := func(map[string]any) error { calls++; return nil }
 		start := time.Now()
 		for i := 0; i < 10; i++ {
-			_ = emit(nil)
+			_ = p.emit(nil, inner)
 		}
 		if calls != 10 {
 			t.Fatalf("expected 10 calls, got %d", calls)
@@ -216,10 +217,11 @@ func TestPacedEmit(t *testing.T) {
 		// rate=1 req/sec * streamPageSize=100 = 100 records/sec → 10ms each.
 		// 5 records ⇒ first emit is immediate, then 4 × 10ms ≈ 40ms.
 		// Floor at 30ms to absorb scheduler jitter on slow CI.
-		emit := pacedEmit(func(map[string]any) error { return nil }, 1.0)
+		p := newPacer(1.0)
+		inner := func(map[string]any) error { return nil }
 		start := time.Now()
 		for i := 0; i < 5; i++ {
-			_ = emit(nil)
+			_ = p.emit(nil, inner)
 		}
 		elapsed := time.Since(start)
 		if elapsed < 30*time.Millisecond {
@@ -232,8 +234,8 @@ func TestPacedEmit(t *testing.T) {
 
 	t.Run("forwards errors from inner", func(t *testing.T) {
 		want := io.EOF
-		emit := pacedEmit(func(map[string]any) error { return want }, 0)
-		if got := emit(nil); got != want {
+		p := newPacer(0)
+		if got := p.emit(nil, func(map[string]any) error { return want }); got != want {
 			t.Errorf("expected inner error to propagate, got %v", got)
 		}
 	})

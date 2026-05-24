@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"reflect"
+	"slices"
 	"strings"
 
 	"github.com/simonperryman/agent-stripe/internal/cli"
@@ -124,14 +125,7 @@ func knownResources() []string {
 	for k := range resourceRegistry {
 		out = append(out, k)
 	}
-	// Deterministic order for usage messages.
-	for i := 0; i < len(out); i++ {
-		for j := i + 1; j < len(out); j++ {
-			if out[j] < out[i] {
-				out[i], out[j] = out[j], out[i]
-			}
-		}
-	}
+	slices.Sort(out)
 	return out
 }
 

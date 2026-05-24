@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 const appDir = "agent-stripe"
@@ -116,9 +117,9 @@ func saveTo(p string, c *Config) error {
 // supported in v1.
 func DeriveMode(key string) (Mode, error) {
 	switch {
-	case len(key) > 8 && key[:8] == "sk_test_":
+	case strings.HasPrefix(key, "sk_test_"):
 		return ModeTest, nil
-	case len(key) > 8 && key[:8] == "sk_live_":
+	case strings.HasPrefix(key, "sk_live_"):
 		return ModeLive, nil
 	}
 	return "", errors.New("key must start with sk_test_ or sk_live_")
