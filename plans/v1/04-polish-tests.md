@@ -1,6 +1,6 @@
 # Phase 4 — Plan 2: Automated tests to add
 
-Status: draft
+Status: done
 Parent: [04-polish.md](./04-polish.md)
 
 ## Goal

@@ -1,6 +1,6 @@
 # Phase 4 — Polish
 
-Status: draft
+Status: done (in-repo; tagged release + homebrew-tap publication remain out-of-repo)
 
 ## Goal
 
