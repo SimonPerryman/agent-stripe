@@ -196,6 +196,49 @@ func captureCLIStdout(t *testing.T, fn func()) string {
 	return string(res.data)
 }
 
+func TestPacedEmit(t *testing.T) {
+	t.Run("rate=0 is a no-op", func(t *testing.T) {
+		calls := 0
+		emit := pacedEmit(func(map[string]any) error { calls++; return nil }, 0)
+		start := time.Now()
+		for i := 0; i < 10; i++ {
+			_ = emit(nil)
+		}
+		if calls != 10 {
+			t.Fatalf("expected 10 calls, got %d", calls)
+		}
+		if elapsed := time.Since(start); elapsed > 5*time.Millisecond {
+			t.Errorf("rate=0 should not sleep; got %v", elapsed)
+		}
+	})
+
+	t.Run("rate=1 paces at ~10ms per record", func(t *testing.T) {
+		// rate=1 req/sec * streamPageSize=100 = 100 records/sec → 10ms each.
+		// 5 records ⇒ first emit is immediate, then 4 × 10ms ≈ 40ms.
+		// Floor at 30ms to absorb scheduler jitter on slow CI.
+		emit := pacedEmit(func(map[string]any) error { return nil }, 1.0)
+		start := time.Now()
+		for i := 0; i < 5; i++ {
+			_ = emit(nil)
+		}
+		elapsed := time.Since(start)
+		if elapsed < 30*time.Millisecond {
+			t.Errorf("expected ≥30ms across 5 records at rate=1, got %v", elapsed)
+		}
+		if elapsed > 200*time.Millisecond {
+			t.Errorf("expected ≤200ms (sanity ceiling) at rate=1 for 5 records, got %v", elapsed)
+		}
+	})
+
+	t.Run("forwards errors from inner", func(t *testing.T) {
+		want := io.EOF
+		emit := pacedEmit(func(map[string]any) error { return want }, 0)
+		if got := emit(nil); got != want {
+			t.Errorf("expected inner error to propagate, got %v", got)
+		}
+	})
+}
+
 func nonEmptyLines(s string) []string {
 	var out []string
 	for _, l := range strings.Split(s, "\n") {

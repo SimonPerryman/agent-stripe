@@ -28,6 +28,7 @@ type GlobalOpts struct {
 	ExpandPaths  []string // dotted paths (e.g. "lines.data.description") — exact path match
 	ExpandStripe []string // paths passed to Stripe API's expand[] (server-side)
 	Stream       bool     // NDJSON output: header line + one record per line, paginate until cap
+	RateLimit    float64  // requests/sec ceiling on --stream pacing; 0 = unlimited
 	Timeout      time.Duration
 
 	// Account is populated after resolution; nil for commands that don't
@@ -60,6 +61,7 @@ func Dispatch(ctx context.Context, reg *Registry, argv []string) {
 		expand       = fs.String("expand", "", "comma-separated fields/paths to skip truncation on; a token with a dot (e.g. lines.data.description) is matched as a path, bare names match any leaf")
 		expandStripe = fs.String("expand-stripe", "", "comma-separated Stripe API expand paths (server-side, e.g. customer,latest_charge)")
 		stream       = fs.Bool("stream", false, "emit NDJSON: one header line then one record per line; paginates Stripe until exhausted or --limit reached")
+		rateLimit    = fs.Float64("rate-limit", 15.0, "max Stripe requests/sec under --stream (0 = unlimited; Stripe's account-wide cap is 100/sec live, 25/sec test)")
 		timeout      = fs.Duration("timeout", 30*time.Second, "per-request timeout")
 	)
 	// Stop parsing at the first non-flag so subcommands can have their own flags.
@@ -97,6 +99,7 @@ func Dispatch(ctx context.Context, reg *Registry, argv []string) {
 		ExpandPaths:  paths,
 		ExpandStripe: splitCSV(*expandStripe),
 		Stream:       *stream,
+		RateLimit:    *rateLimit,
 		Timeout:      *timeout,
 	}
 
@@ -226,7 +229,7 @@ func splitCSV(s string) []string {
 func printTopUsage(reg *Registry) {
 	var b strings.Builder
 	b.WriteString("agent-stripe — read-only Stripe CLI for AI agents\n\n")
-	b.WriteString("Usage:\n  agent-stripe [-a ALIAS] [--live] [--full] [--expand FIELDS] [--expand-stripe PATHS] [--stream] [--timeout DUR] <command> [args]\n\n")
+	b.WriteString("Usage:\n  agent-stripe [-a ALIAS] [--live] [--full] [--expand FIELDS] [--expand-stripe PATHS] [--stream] [--rate-limit N] [--timeout DUR] <command> [args]\n\n")
 	b.WriteString("Commands:\n")
 	for name, u := range reg.UsageStrings {
 		first := strings.SplitN(u, "\n", 2)[0]
