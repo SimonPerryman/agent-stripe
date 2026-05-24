@@ -61,6 +61,36 @@ func TestProductList_IDs(t *testing.T) {
 	}
 }
 
+func TestProductSearch_QueryAndPage(t *testing.T) {
+	var gotQuery string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotQuery = r.URL.RawQuery
+		_, _ = io.WriteString(w, `{"object":"search_result","data":[{"id":"prod_1","object":"product"}],"has_more":false,"next_page":"tok_next","url":"/v1/products/search"}`)
+	}))
+	defer srv.Close()
+
+	opts := newOpts(srv.URL)
+	restore := captureStdout(t)
+	if err := runSearch(context.Background(), opts, []string{"--query", `active:"true"`, "--page", "tok_abc", "--limit", "5"}); err != nil {
+		t.Fatalf("runSearch: %v", err)
+	}
+	restore()
+
+	if !strings.Contains(gotQuery, "query=active%3A%22true%22") {
+		t.Errorf("expected query=... in querystring, got %q", gotQuery)
+	}
+	if !strings.Contains(gotQuery, "page=tok_abc") {
+		t.Errorf("expected page=tok_abc, got %q", gotQuery)
+	}
+}
+
+func TestProductSearch_MissingQueryErrors(t *testing.T) {
+	opts := newOpts("http://unused")
+	if err := runSearch(context.Background(), opts, []string{}); err == nil {
+		t.Fatal("expected error when --query is missing")
+	}
+}
+
 func captureQuery(t *testing.T, args []string) string {
 	t.Helper()
 	var got string

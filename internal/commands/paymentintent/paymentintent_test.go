@@ -42,6 +42,42 @@ func TestPaymentIntentGet_ExpandLatestCharge(t *testing.T) {
 	}
 }
 
+func TestPaymentIntentSearch_QueryAndPage(t *testing.T) {
+	var gotQuery string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotQuery = r.URL.RawQuery
+		_, _ = io.WriteString(w, `{"object":"search_result","data":[{"id":"pi_1","object":"payment_intent"}],"has_more":false,"next_page":"tok_next","url":"/v1/payment_intents/search"}`)
+	}))
+	defer srv.Close()
+
+	opts := &cli.GlobalOpts{
+		Account: &config.Account{Alias: "test", Mode: config.ModeTest},
+		Client:  agentstripe.NewClient("sk_test_fake", srv.URL, 5*time.Second),
+	}
+	restore := redirectStdout(t)
+	if err := runSearch(context.Background(), opts, []string{"--query", `status:"succeeded"`, "--page", "tok_abc", "--limit", "5"}); err != nil {
+		t.Fatalf("runSearch: %v", err)
+	}
+	restore()
+
+	if !strings.Contains(gotQuery, "query=status%3A%22succeeded%22") {
+		t.Errorf("expected query=... in querystring, got %q", gotQuery)
+	}
+	if !strings.Contains(gotQuery, "page=tok_abc") {
+		t.Errorf("expected page=tok_abc, got %q", gotQuery)
+	}
+}
+
+func TestPaymentIntentSearch_MissingQueryErrors(t *testing.T) {
+	opts := &cli.GlobalOpts{
+		Account: &config.Account{Alias: "test", Mode: config.ModeTest},
+		Client:  agentstripe.NewClient("sk_test_fake", "http://unused", 5*time.Second),
+	}
+	if err := runSearch(context.Background(), opts, []string{}); err == nil {
+		t.Fatal("expected error when --query is missing")
+	}
+}
+
 func redirectStdout(t *testing.T) func() {
 	t.Helper()
 	old := os.Stdout

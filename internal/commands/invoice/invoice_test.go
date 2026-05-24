@@ -138,6 +138,36 @@ func pluckLineDescription(t *testing.T, env map[string]any) string {
 	return desc
 }
 
+func TestInvoiceSearch_QueryAndPage(t *testing.T) {
+	var gotQuery string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotQuery = r.URL.RawQuery
+		_, _ = io.WriteString(w, `{"object":"search_result","data":[{"id":"in_1","object":"invoice"}],"has_more":false,"next_page":"tok_next","url":"/v1/invoices/search"}`)
+	}))
+	defer srv.Close()
+
+	opts := newOpts(srv.URL)
+	restore := captureStdout(t)
+	if err := runSearch(context.Background(), opts, []string{"--query", `status:"paid"`, "--page", "tok_abc", "--limit", "5"}); err != nil {
+		t.Fatalf("runSearch: %v", err)
+	}
+	restore()
+
+	if !strings.Contains(gotQuery, "query=status%3A%22paid%22") {
+		t.Errorf("expected query=... in querystring, got %q", gotQuery)
+	}
+	if !strings.Contains(gotQuery, "page=tok_abc") {
+		t.Errorf("expected page=tok_abc, got %q", gotQuery)
+	}
+}
+
+func TestInvoiceSearch_MissingQueryErrors(t *testing.T) {
+	opts := newOpts("http://unused")
+	if err := runSearch(context.Background(), opts, []string{}); err == nil {
+		t.Fatal("expected error when --query is missing")
+	}
+}
+
 func newOpts(baseURL string) *cli.GlobalOpts {
 	return &cli.GlobalOpts{
 		Account: &config.Account{Alias: "test", Mode: config.ModeTest},
