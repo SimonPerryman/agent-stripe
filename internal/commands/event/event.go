@@ -31,7 +31,12 @@ Subcommands:
   list [--type T] [--created-gt T] [--created-lt T] [--limit N] [--related ID]
                                             List recent events. --related filters
                                             client-side by data.object.id; useful
-                                            for "what happened to this object?".`
+                                            for "what happened to this object?".
+                                            With --stream + --related: emits header
+                                            line, one event per line, then a final
+                                            {"_truncated":bool,"scanned":N,"matched":M}
+                                            line. --max-scan still applies;
+                                            --limit caps matched count if set.`
 
 func Run(ctx context.Context, opts *cli.GlobalOpts, args []string) error {
 	if len(args) == 0 {
@@ -80,17 +85,29 @@ func runList(ctx context.Context, opts *cli.GlobalOpts, args []string) error {
 		params.CreatedRange = r
 	}
 
-	list := opts.Client.V1Events.List(ctx, params)
-
 	if *related != "" {
+		list := opts.Client.V1Events.List(ctx, params)
+		if opts.Stream {
+			return runRelatedStream(ctx, opts, list, *related, *maxScan, *limit, cli.LimitExplicit(fs))
+		}
 		return runRelated(ctx, opts, list, *related, *maxScan, *limit)
 	}
 
+	if opts.Stream {
+		params.Limit = stripeapi.Int64(100)
+		cap := 0
+		if cli.LimitExplicit(fs) {
+			cap = *limit
+		}
+		return cli.StreamList(ctx, opts, opts.Client.V1Events.List(ctx, params), cap)
+	}
+
+	list := opts.Client.V1Events.List(ctx, params)
 	items, hasMore, nextCursor, err := agentstripe.CollectRawList(ctx, list, *limit)
 	if err != nil {
 		return err
 	}
-	rendered, err := output.Render(items, output.Options{Full: opts.Full, Expand: opts.Expand})
+	rendered, err := output.Render(items, output.Options{Full: opts.Full, Expand: opts.Expand, ExpandPaths: opts.ExpandPaths})
 	if err != nil {
 		return err
 	}
@@ -130,7 +147,7 @@ func runRelated(ctx context.Context, opts *cli.GlobalOpts, list *stripeapi.V1Lis
 		}
 	}
 
-	rendered, err := output.Render(matched, output.Options{Full: opts.Full, Expand: opts.Expand})
+	rendered, err := output.Render(matched, output.Options{Full: opts.Full, Expand: opts.Expand, ExpandPaths: opts.ExpandPaths})
 	if err != nil {
 		return err
 	}
@@ -141,6 +158,60 @@ func runRelated(ctx context.Context, opts *cli.GlobalOpts, list *stripeapi.V1Lis
 		Data:       rendered,
 		Scan:       &output.Scan{Scanned: scanned, Matched: len(matched), Truncated: truncated},
 	})
+}
+
+func runRelatedStream(ctx context.Context, opts *cli.GlobalOpts, list *stripeapi.V1List[*stripeapi.Event], related string, maxScan, limit int, limitExplicit bool) error {
+	streamer, err := output.NewStreamer(os.Stdout, cli.EnvelopeFor(opts))
+	if err != nil {
+		if output.IsBrokenPipe(err) {
+			return nil
+		}
+		return err
+	}
+	scanned, matched := 0, 0
+	truncated := false
+	for evt, iterErr := range list.All(ctx) {
+		if iterErr != nil {
+			return iterErr
+		}
+		scanned++
+		m, err := agentstripe.ToRawMap(evt)
+		if err != nil {
+			return err
+		}
+		if eventMatchesObject(m, related) {
+			rendered, rErr := cli.RenderForStream(m, opts)
+			if rErr != nil {
+				return rErr
+			}
+			if wErr := streamer.Write(rendered); wErr != nil {
+				if output.IsBrokenPipe(wErr) {
+					return nil
+				}
+				return wErr
+			}
+			matched++
+			if limitExplicit && matched >= limit {
+				truncated = true
+				break
+			}
+		}
+		if scanned >= maxScan {
+			truncated = true
+			break
+		}
+	}
+	if err := streamer.WriteSummary(map[string]any{
+		"_truncated": truncated,
+		"scanned":    scanned,
+		"matched":    matched,
+	}); err != nil {
+		if output.IsBrokenPipe(err) {
+			return nil
+		}
+		return err
+	}
+	return nil
 }
 
 // eventMatchesObject extracts data.object.id from the event map and compares

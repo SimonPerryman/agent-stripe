@@ -215,6 +215,14 @@ func (s *Streamer) Write(record any) error {
 	return nil
 }
 
+// WriteSummary emits a single trailing object — used by commands whose stream
+// has a tail with shape distinct from the records (e.g. event --related's
+// scan summary). Same broken-pipe semantics as Write. Caller is responsible
+// for calling it at most once.
+func (s *Streamer) WriteSummary(summary any) error {
+	return s.Write(summary)
+}
+
 var errBrokenPipe = errors.New("broken pipe")
 
 // IsBrokenPipe reports whether err is the sentinel signalling the consumer
