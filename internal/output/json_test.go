@@ -129,6 +129,44 @@ func TestRenderPrunesEmpty(t *testing.T) {
 	}
 }
 
+func TestRenderDoesNotMutateInput(t *testing.T) {
+	// The fast path for map[string]any/[]map[string]any skips the
+	// JSON-roundtrip. Render must still hand back a fresh tree so callers can
+	// reuse the input map (e.g. event --related reads from the same decoded
+	// event after filtering).
+	long := strings.Repeat("x", DefaultTruncateLength+50)
+	in := map[string]any{
+		"description": long,
+		"nested":      map[string]any{"x": long},
+		"items": []any{
+			map[string]any{"y": long},
+		},
+	}
+	_, err := Render(in, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(in["description"].(string)) != DefaultTruncateLength+50 {
+		t.Fatal("input description was mutated")
+	}
+	if len(in["nested"].(map[string]any)["x"].(string)) != DefaultTruncateLength+50 {
+		t.Fatal("input nested.x was mutated")
+	}
+	if len(in["items"].([]any)[0].(map[string]any)["y"].(string)) != DefaultTruncateLength+50 {
+		t.Fatal("input items[0].y was mutated")
+	}
+
+	// And the []map[string]any fast path:
+	slice := []map[string]any{{"description": long}}
+	_, err = Render(slice, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(slice[0]["description"].(string)) != DefaultTruncateLength+50 {
+		t.Fatal("input slice[0].description was mutated")
+	}
+}
+
 func TestEmitEnvelope(t *testing.T) {
 	var buf bytes.Buffer
 	env := Envelope{Mode: "test", Account: "acme", APIVersion: "2026-04-22.dahlia", Data: map[string]any{"id": "cus_1"}}

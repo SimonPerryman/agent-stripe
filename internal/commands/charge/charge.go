@@ -10,7 +10,6 @@ import (
 	"os"
 
 	"github.com/simonperryman/agent-stripe/internal/cli"
-	"github.com/simonperryman/agent-stripe/internal/output"
 	agentstripe "github.com/simonperryman/agent-stripe/internal/stripe"
 
 	stripeapi "github.com/stripe/stripe-go/v85"
@@ -76,16 +75,7 @@ func runGet(ctx context.Context, opts *cli.GlobalOpts, args []string) error {
 	if err != nil {
 		return err
 	}
-	rendered, err := output.Render(m, output.Options{Full: opts.Full, Expand: opts.Expand, ExpandPaths: opts.ExpandPaths})
-	if err != nil {
-		return err
-	}
-	return output.Emit(os.Stdout, output.Envelope{
-		Mode:       string(opts.Account.Mode),
-		Account:    opts.Account.Alias,
-		APIVersion: agentstripe.PinnedAPIVersion,
-		Data:       rendered,
-	})
+	return cli.EmitSingle(opts, m)
 }
 
 func runList(ctx context.Context, opts *cli.GlobalOpts, args []string) error {
@@ -125,31 +115,10 @@ func runList(ctx context.Context, opts *cli.GlobalOpts, args []string) error {
 	}
 
 	if opts.Stream {
-		// Under --stream, max per-page is fixed at 100 to minimise round-trips;
-		// --limit becomes a hard stop only if the user passed it explicitly.
+		// Under --stream, max per-page is fixed at 100 to minimise round-trips.
 		params.Limit = stripeapi.Int64(100)
-		cap := 0
-		if cli.LimitExplicit(fs) {
-			cap = *limit
-		}
-		return cli.StreamList(ctx, opts, opts.Client.V1Charges.List(ctx, params), cap)
 	}
-	list := opts.Client.V1Charges.List(ctx, params)
-	items, hasMore, nextCursor, err := agentstripe.CollectRawList(ctx, list, *limit)
-	if err != nil {
-		return err
-	}
-	rendered, err := output.Render(items, output.Options{Full: opts.Full, Expand: opts.Expand, ExpandPaths: opts.ExpandPaths})
-	if err != nil {
-		return err
-	}
-	return output.Emit(os.Stdout, output.Envelope{
-		Mode:       string(opts.Account.Mode),
-		Account:    opts.Account.Alias,
-		APIVersion: agentstripe.PinnedAPIVersion,
-		Data:       rendered,
-		Page:       &output.Page{HasMore: hasMore, NextCursor: nextCursor, Count: len(items)},
-	})
+	return cli.RunListOrStream(ctx, opts, opts.Client.V1Charges.List(ctx, params), *limit, cli.LimitExplicit(fs))
 }
 
 func runSearch(ctx context.Context, opts *cli.GlobalOpts, args []string) error {
@@ -166,26 +135,6 @@ func runSearch(ctx context.Context, opts *cli.GlobalOpts, args []string) error {
 	params.Expand = agentstripe.ExpandSlice(opts.ExpandStripe)
 	if opts.Stream {
 		params.Limit = stripeapi.Int64(100)
-		cap := 0
-		if sf.LimitExplicit {
-			cap = sf.Limit
-		}
-		return cli.StreamSearch(ctx, opts, opts.Client.V1Charges.Search(ctx, params), cap)
 	}
-	list := opts.Client.V1Charges.Search(ctx, params)
-	items, hasMore, nextCursor, err := agentstripe.CollectRawSearch(ctx, list, sf.Limit)
-	if err != nil {
-		return err
-	}
-	rendered, err := output.Render(items, output.Options{Full: opts.Full, Expand: opts.Expand, ExpandPaths: opts.ExpandPaths})
-	if err != nil {
-		return err
-	}
-	return output.Emit(os.Stdout, output.Envelope{
-		Mode:       string(opts.Account.Mode),
-		Account:    opts.Account.Alias,
-		APIVersion: agentstripe.PinnedAPIVersion,
-		Data:       rendered,
-		Page:       &output.Page{HasMore: hasMore, NextCursor: nextCursor, Count: len(items)},
-	})
+	return cli.RunSearchOrStream(ctx, opts, opts.Client.V1Charges.Search(ctx, params), sf.Limit, sf.LimitExplicit)
 }

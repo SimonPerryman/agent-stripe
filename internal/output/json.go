@@ -53,19 +53,13 @@ type Options struct {
 
 // Render applies the options to data: walks the structure, prunes empties,
 // truncates long strings unless --full or the field is in --expand.
-// The data must be JSON-serializable; we round-trip through JSON to convert
-// arbitrary types (Stripe SDK structs) into a uniform map/slice tree.
+// The data must be JSON-serializable; for arbitrary types we round-trip
+// through JSON to convert into a uniform map/slice tree. Callers that already
+// hold a map[string]any or []map[string]any (every list/get command does, via
+// agentstripe.ToRawMap) hit a fast path that skips the redundant round-trip.
 func Render(data any, opts Options) (any, error) {
 	if data == nil {
 		return nil, nil
-	}
-	raw, err := json.Marshal(data)
-	if err != nil {
-		return nil, err
-	}
-	var tree any
-	if err := json.Unmarshal(raw, &tree); err != nil {
-		return nil, err
 	}
 	tl := opts.TruncateLength
 	if tl == 0 {
@@ -78,6 +72,29 @@ func Render(data any, opts Options) (any, error) {
 	pathSet := make(map[string]struct{}, len(opts.ExpandPaths))
 	for _, p := range opts.ExpandPaths {
 		pathSet[p] = struct{}{}
+	}
+
+	// Fast path: caller is already handing us a map / slice-of-maps. Skip the
+	// marshal/unmarshal round-trip. walk only ever reads child references, so
+	// the input map is not mutated.
+	switch v := data.(type) {
+	case map[string]any:
+		return walk(v, "", "", opts.Full, expandSet, pathSet, tl), nil
+	case []map[string]any:
+		items := make([]any, len(v))
+		for i, m := range v {
+			items[i] = m
+		}
+		return walk(items, "", "", opts.Full, expandSet, pathSet, tl), nil
+	}
+
+	raw, err := json.Marshal(data)
+	if err != nil {
+		return nil, err
+	}
+	var tree any
+	if err := json.Unmarshal(raw, &tree); err != nil {
+		return nil, err
 	}
 	return walk(tree, "", "", opts.Full, expandSet, pathSet, tl), nil
 }

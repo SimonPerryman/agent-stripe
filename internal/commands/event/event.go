@@ -101,29 +101,8 @@ func runList(ctx context.Context, opts *cli.GlobalOpts, args []string) error {
 
 	if opts.Stream {
 		params.Limit = stripeapi.Int64(100)
-		cap := 0
-		if cli.LimitExplicit(fs) {
-			cap = *limit
-		}
-		return cli.StreamList(ctx, opts, opts.Client.V1Events.List(ctx, params), cap)
 	}
-
-	list := opts.Client.V1Events.List(ctx, params)
-	items, hasMore, nextCursor, err := agentstripe.CollectRawList(ctx, list, *limit)
-	if err != nil {
-		return err
-	}
-	rendered, err := output.Render(items, output.Options{Full: opts.Full, Expand: opts.Expand, ExpandPaths: opts.ExpandPaths})
-	if err != nil {
-		return err
-	}
-	return output.Emit(os.Stdout, output.Envelope{
-		Mode:       string(opts.Account.Mode),
-		Account:    opts.Account.Alias,
-		APIVersion: agentstripe.PinnedAPIVersion,
-		Data:       rendered,
-		Page:       &output.Page{HasMore: hasMore, NextCursor: nextCursor, Count: len(items)},
-	})
+	return cli.RunListOrStream(ctx, opts, opts.Client.V1Events.List(ctx, params), *limit, cli.LimitExplicit(fs))
 }
 
 func runRelated(ctx context.Context, opts *cli.GlobalOpts, list *stripeapi.V1List[*stripeapi.Event], related string, maxScan, limit int) error {
