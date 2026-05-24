@@ -24,6 +24,7 @@ import (
 	"github.com/simonperryman/agent-stripe/internal/commands/refund"
 	"github.com/simonperryman/agent-stripe/internal/commands/resource"
 	"github.com/simonperryman/agent-stripe/internal/commands/subscription"
+	"github.com/simonperryman/agent-stripe/internal/commands/transfer"
 )
 
 func main() {
@@ -41,6 +42,7 @@ func main() {
 			"dispute":        dispute.Run,
 			"balance":        balance.Run,
 			"payout":         payout.Run,
+			"transfer":       transfer.Run,
 			"subscription":   subscription.Run,
 			"invoice":        invoice.Run,
 			"product":        product.Run,
@@ -60,6 +62,7 @@ func main() {
 			"dispute":        dispute.Usage,
 			"balance":        balance.Usage,
 			"payout":         payout.Usage,
+			"transfer":       transfer.Usage,
 			"subscription":   subscription.Usage,
 			"invoice":        invoice.Usage,
 			"product":        product.Usage,

@@ -62,6 +62,35 @@ func TestDescribeSubscription_DepthCap(t *testing.T) {
 	}
 }
 
+func TestDescribeTransfer_ExpandPaths(t *testing.T) {
+	out := captureStdout(t, func() {
+		if err := runDescribe(context.Background(), &cli.GlobalOpts{}, []string{"transfer"}); err != nil {
+			t.Fatalf("runDescribe: %v", err)
+		}
+	})
+	var env struct {
+		Data struct {
+			Resource    string   `json:"resource"`
+			ExpandPaths []string `json:"expandPaths"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal([]byte(out), &env); err != nil {
+		t.Fatalf("unmarshal: %v (out=%q)", err, out)
+	}
+	if env.Data.Resource != "transfer" {
+		t.Errorf("resource = %q, want transfer", env.Data.Resource)
+	}
+	want := []string{"destination", "source_transaction", "balance_transaction", "source_transaction.balance_transaction", "reversals"}
+	if len(env.Data.ExpandPaths) != len(want) {
+		t.Fatalf("expandPaths = %v, want %v", env.Data.ExpandPaths, want)
+	}
+	for i, w := range want {
+		if env.Data.ExpandPaths[i] != w {
+			t.Errorf("expandPaths[%d] = %q, want %q", i, env.Data.ExpandPaths[i], w)
+		}
+	}
+}
+
 func TestDescribeUnknownResource(t *testing.T) {
 	err := runDescribe(context.Background(), &cli.GlobalOpts{}, []string{"nope"})
 	if err == nil {

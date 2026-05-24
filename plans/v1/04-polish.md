@@ -133,3 +133,75 @@ Order matters here because §4 unblocks §1, §1 unblocks §2's most useful invo
 - 2026-05-24 — §5 (`SKILL.md`) at repo root. Frontmatter emphasises read-only twice as planned. Command surface is a compact tree; flag-level detail intentionally not duplicated (points at `<command> usage`).
 - 2026-05-24 — §6 — `.goreleaser.yml` configured for darwin/linux × amd64/arm64, brew tap target is `simonperryman/homebrew-tap`. `make release` / `make release-snapshot` targets added. Tap repo + first tagged release still need to happen out-of-band.
 - 2026-05-24 — §7 README + AGENTS.md flipped to reflect shipped state: customers/payments/billing now ✅ across the board, search and `--stream` documented with examples, `resource describe` called out in Discoverability and AGENTS principles. **Remaining open Phase 4 work**: cutting the first tagged release and publishing the `homebrew-tap` repo; both are out-of-repo.
+- 2026-05-24 — Phase 4.x `transfer` command landed. Subcommands: `get`, `list` (`--transfer-group`, `--destination`, `--created-gt/lt`, `--limit`, `--starting-after`), `reversals <transfer-id>` (sub-list, supports `--stream`), `reversal <transfer-id> <rev-id>`. Modelled on `payout`. `resource describe transfer` registered with the curated `expandPaths` from the plan. Connect headers explicitly not exposed; usage block documents the platform-account-only scope. Reversals `runReversals` pre-extracts the positional `transfer-id` so flags can appear on either side of it. README/AGENTS.md/SKILL.md updates deferred to ship alongside the tagged release.
+
+## Follow-ups
+
+### `transfer` command (Phase 4.x)
+
+**Why this exists.** Real gap surfaced by an LDT debugging session: given a `tr_…` id (or a `transfer_group`), there's no way to retrieve or list transfers via agent-stripe today. The `completeFundsForEntries` flow tags transfers with metadata (`entryId`, `bookingIds`, `integrationJobId`, `checkoutSessionId`) that is currently unreachable from the CLI — the only way to inspect it is the Stripe Dashboard or raw `curl`, which is exactly the friction agent-stripe exists to remove.
+
+**SDK shape.** `stripe-go` v85 exposes:
+
+- `V1Transfers.Retrieve(ctx, id, *TransferRetrieveParams)` → `*Transfer`
+- `V1Transfers.List(ctx, *TransferListParams)` — filters: `Destination`, `TransferGroup`, `CreatedRange` (gt/lt), standard `Limit`/`StartingAfter`
+- `V1TransferReversals.Retrieve(ctx, reversalID, *TransferReversalRetrieveParams)` with `ID` (parent transfer id) in params
+- `V1TransferReversals.List(ctx, *TransferReversalListParams)` — `ID` (parent transfer id) is the path param, not a filter
+
+No Search API. List-only, same shape as `payout` — copy that command verbatim and adapt fields. The read-only transport (`internal/stripe/readonly.go`) already covers all four endpoints since they're GETs; no chokepoint changes.
+
+**Command surface.**
+
+```
+transfer get <id>                            Fetch one transfer (tr_…)
+transfer list [--transfer-group G] [--destination acct_…]
+              [--created-gt T] [--created-lt T]
+              [--limit N] [--starting-after TR]
+                                             List transfers (cursor-paginated)
+transfer reversals <transfer-id>             List reversals for a transfer
+                                             (the first 10 are also inline on
+                                             the transfer object; only needed
+                                             when there are >10)
+transfer reversal <transfer-id> <rev-id>     Fetch one reversal (trr_…)
+```
+
+`--stream` rides the existing `cli.StreamList[T]` helper on both `list` and `reversals`. `--expand-stripe` and the global `--expand` / `--full` come for free via `output.Render`.
+
+**`expandPaths` for `resource describe transfer`** (hand-curated, matches what the LDT debugging flow actually needs):
+
+- `destination` — the connected account that received the funds
+- `source_transaction` — the charge the transfer was derived from
+- `balance_transaction` — the platform-side BT (debit) for the transfer
+- `source_transaction.balance_transaction` — the charge-side BT, for end-to-end fee reconciliation
+- `reversals` — already inline, but allows full expansion when there are >0
+
+**Cross-reference paragraph for `Usage`** (same shape as payout's):
+
+> A transfer's `source_transaction` is the originating `ch_…` (when the transfer is `source_transaction`-driven, the common case for destination charges) and its `balance_transaction` is the platform-account BT that records the funds leaving. To walk transfer → underlying charge → fees, combine `transfer get … --expand-stripe source_transaction.balance_transaction` with `charge get`.
+
+**The Connect question — flag, don't silently open.** Transfers are a Connect-shaped API in practice: a `transfer_group` only exists because someone tied charges to a destination account, and the LDT use case is explicitly a Connect-platform debugging flow. PLAN.md decision #2 deferred Connect headers (`--on-behalf-of` / `Stripe-Account`) to v2. **The follow-up scope is intentionally the platform-account view only** — i.e. transfers initiated *by* the platform, viewed *from* the platform. Listing transfers on a connected account's books (`Stripe-Account: acct_…` header) is still v2. Document this explicitly in `transfer usage` so an agent doesn't try `--stripe-account` and get a flag-not-found error mid-investigation.
+
+If a real need for the connected-account view shows up before v2, the right move is to revisit decision #2 wholesale rather than back-dooring one header onto `transfer` and leaving the rest of the CLI inconsistent.
+
+**Tests.** Mirror `payout_test.go` + `payout_integration_test.go`:
+
+- `transfer_test.go`: query-string assertions for `transfer_group`, `destination`, `created[gt]`/`created[lt]`, `limit`, `starting-after`; reversal list passes the parent id in the URL path, not as a query param.
+- `transfer_integration_test.go` (gated as Phases 2–3): `runGet(tr_… from fixture account)`, `runList(--limit 1)`, `runReversals` against a known-multi-reversal transfer (will need a fixture or skip-if-no-fixture pattern — payout's integration test is the template).
+- `resource/describe_test.go`: extend the snapshot to cover `transfer` (locks the `expandPaths` list above).
+- `output/json_test.go`: no new cases needed — the path-aware truncation work from §4 already covers `source_transaction.balance_transaction`.
+
+**Where this lands.** Standalone PR, sequenced after the homebrew tap ships (so the LDT engineer who hit the gap can `brew install` and use it immediately). Plan log should note this as Phase 4.x rather than slipping into Phase 5 — it's read-only and doesn't change the "agents explore, humans act" guarantee, so it belongs in this phase's scope even if it ships after the §1–§7 batch.
+
+**Resolved decisions (don't re-derive these at implementation time).**
+
+- **`transfer reversals <id>`, not `transfer reversal list <id>`.** Reversals are a sub-collection of a single transfer, not a peer resource — the flat form reads like the data ("show me the reversals on this transfer"). `transfer reversal <transfer-id> <rev-id>` for single fetch is the only nested form. The slight inconsistency with other resources is worth the ergonomics.
+- **`transfer get` does NOT auto-expand `reversals`.** Stripe already inlines up to 10 on the object; adding an automatic `expand[]=reversals` risks suppressing that inline behavior and changing the default shape. Agents that need >10 use `transfer reversals <id>` explicitly. Verify the inline-vs-expand interaction against a real fixture during implementation; if expansion turns out to be additive (not replacing the inline list), this decision is fine to revisit.
+- **`source_transaction` typed-as-`*Charge` lie in `resource describe`.** Don't special-case it. The exact same shape exists today on `payout.destination`, `subscription.customer`, `charge.customer`, etc. — every Stripe expandable field is "id string OR full object" at the wire and `*T` in the SDK. Solving it here means solving it inconsistently. The right fix is a global `expandable: true` annotation in the `describe` output, added in a separate pass that touches every resource at once. Park.
+- **Reversal integration test uses skip-if-empty.** Same pattern as the dispute integration tests — query reversals, skip the assertion body if the test account has none. Avoids the "seed a fixture and document the id" maintenance tax, and matches how the rest of the gated suite already handles "this account may not have one of these".
+
+**Out of scope even for the follow-up.**
+
+- `transfer create` / `transfer reversal create` — write surface, Phase 5.
+- Listing transfers on a connected account (`Stripe-Account` header) — v2 per above.
+- `transfer update` (only `description` and `metadata` are mutable, and only via POST) — write surface, Phase 5.
+- Cross-resource "find transfers for booking X by metadata" — there is no metadata search on transfers; agents have to list + filter client-side. Worth a one-line note in `usage` so the agent doesn't ask for a flag that can't exist.
