@@ -50,6 +50,21 @@ func toRawMap(item any) (map[string]any, string, error) {
 	return m, id, nil
 }
 
+// ExpandSlice converts a flat []string into the []*string that Stripe's SDK
+// expects for params.Expand. Returns nil when the input is empty so the
+// generated query string omits the expand[]= keys entirely.
+func ExpandSlice(paths []string) []*string {
+	if len(paths) == 0 {
+		return nil
+	}
+	out := make([]*string, len(paths))
+	for i, p := range paths {
+		s := p
+		out[i] = &s
+	}
+	return out
+}
+
 // ToRawMap converts any Stripe resource into a map[string]any via JSON
 // round-trip so it can flow through the output package's renderer.
 func ToRawMap(item any) (map[string]any, error) {

@@ -6,7 +6,7 @@ Modeled on [agent-mongo](https://github.com/shhac/agent-mongo) and [agent-dd](ht
 
 ## Status
 
-🚧 Pre-release. Phase 1 (scaffolding + `account`, `customer`, `event` commands) is implemented; Phases 2–4 are still planned. See [plans/v1/](plans/v1/).
+🚧 Pre-release. Phases 1–2 (scaffolding + `account`, `customer`, `event`, and the Payments resources) are implemented; Phases 3–4 are still planned. See [plans/v1/](plans/v1/).
 
 Legend: ✅ shipped · 🚧 in progress · ⏳ planned
 
@@ -27,15 +27,32 @@ Store API keys locally, switch between accounts, never echo secrets back to the 
 ### Customers 🚧
 | `customer get <id>` ✅ · `customer list` ✅ · `customer search --query` ⏳ |
 
-### Payments ⏳
+### Payments 🚧
 | Resource | Commands | Status |
 |---|---|---|
-| `charge` | `get`, `list`, `search` | ⏳ |
-| `payment-intent` | `get`, `list`, `search` | ⏳ |
-| `refund` | `get`, `list` | ⏳ |
-| `dispute` | `get`, `list` | ⏳ |
-| `balance` | `get`, `transactions` | ⏳ |
-| `payout` | `get`, `list` | ⏳ |
+| `charge` | `get`, `list` ✅ · `search` ⏳ | 🚧 |
+| `payment-intent` | `get`, `list` ✅ · `search` ⏳ | 🚧 |
+| `refund` | `get`, `list` | ✅ |
+| `dispute` | `get`, `list` | ✅ |
+| `balance` | `get`, `transactions` | ✅ |
+| `payout` | `get`, `list` | ✅ |
+
+**Debugging a failed charge** — typical agent flow:
+
+```sh
+agent-stripe event list --related ch_xxx          # what happened, in order
+agent-stripe charge get ch_xxx --full             # outcome.seller_message + failure_message
+agent-stripe balance transactions --type charge   # fees / settlement once it lands
+```
+
+**`--expand-stripe`** — Stripe's `expand[]` passthrough. Useful when one resource references another and you'd otherwise need a second round-trip:
+
+```sh
+agent-stripe payment-intent get pi_xxx --expand-stripe latest_charge,customer
+agent-stripe charge get ch_xxx --expand-stripe customer,balance_transaction
+```
+
+Paths aren't validated — typos return the un-expanded shape silently. See each command's `usage` for the recommended set.
 
 ### Billing ⏳
 | Resource | Commands | Status |
@@ -82,6 +99,19 @@ The core debugging tool — lets an agent reconstruct what happened to an object
 - Connect onboarding flows
 
 Phase 5 may add scoped writes (refunds, subscription cancel) behind `--confirm` if there's real demand.
+
+## Tests
+
+Unit tests run with `make test` and mock Stripe at the HTTP layer (no network).
+
+Integration tests hit Stripe **test mode** with a dedicated key. Grab a test key from the [Stripe dashboard](https://dashboard.stripe.com/test/apikeys) (the one prefixed `sk_test_…`), then:
+
+```sh
+export STRIPE_TEST_KEY=sk_test_...
+make integration
+```
+
+Without `STRIPE_TEST_KEY` set, the suite skips cleanly.
 
 ## Install
 

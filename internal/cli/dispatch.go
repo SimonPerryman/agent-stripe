@@ -25,6 +25,7 @@ type GlobalOpts struct {
 	Live         bool
 	Full         bool
 	Expand       []string
+	ExpandStripe []string // paths passed to Stripe API's expand[] (server-side)
 	Timeout      time.Duration
 
 	// Account is populated after resolution; nil for commands that don't
@@ -51,11 +52,12 @@ func Dispatch(ctx context.Context, reg *Registry, argv []string) {
 	fs := flag.NewFlagSet("agent-stripe", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
 	var (
-		account = fs.String("a", "", "account alias (overrides AGENT_STRIPE_ACCOUNT and config default)")
-		live    = fs.Bool("live", false, "allow operations against a live-mode account")
-		full    = fs.Bool("full", false, "skip string truncation in output")
-		expand  = fs.String("expand", "", "comma-separated list of fields to skip truncation on")
-		timeout = fs.Duration("timeout", 30*time.Second, "per-request timeout")
+		account      = fs.String("a", "", "account alias (overrides AGENT_STRIPE_ACCOUNT and config default)")
+		live         = fs.Bool("live", false, "allow operations against a live-mode account")
+		full         = fs.Bool("full", false, "skip string truncation in output")
+		expand       = fs.String("expand", "", "comma-separated list of fields to skip truncation on")
+		expandStripe = fs.String("expand-stripe", "", "comma-separated Stripe API expand paths (server-side, e.g. customer,latest_charge)")
+		timeout      = fs.Duration("timeout", 30*time.Second, "per-request timeout")
 	)
 	// Stop parsing at the first non-flag so subcommands can have their own flags.
 	if err := parseUntilSubcommand(fs, argv); err != nil {
@@ -88,6 +90,7 @@ func Dispatch(ctx context.Context, reg *Registry, argv []string) {
 		Live:         *live,
 		Full:         *full,
 		Expand:       splitCSV(*expand),
+		ExpandStripe: splitCSV(*expandStripe),
 		Timeout:      *timeout,
 	}
 
@@ -203,7 +206,7 @@ func splitCSV(s string) []string {
 func printTopUsage(reg *Registry) {
 	var b strings.Builder
 	b.WriteString("agent-stripe — read-only Stripe CLI for AI agents\n\n")
-	b.WriteString("Usage:\n  agent-stripe [-a ALIAS] [--live] [--full] [--expand FIELDS] [--timeout DUR] <command> [args]\n\n")
+	b.WriteString("Usage:\n  agent-stripe [-a ALIAS] [--live] [--full] [--expand FIELDS] [--expand-stripe PATHS] [--timeout DUR] <command> [args]\n\n")
 	b.WriteString("Commands:\n")
 	for name, u := range reg.UsageStrings {
 		first := strings.SplitN(u, "\n", 2)[0]

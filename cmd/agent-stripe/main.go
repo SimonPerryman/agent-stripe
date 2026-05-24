@@ -11,8 +11,14 @@ import (
 
 	"github.com/shhac/agent-stripe/internal/cli"
 	"github.com/shhac/agent-stripe/internal/commands/account"
+	"github.com/shhac/agent-stripe/internal/commands/balance"
+	"github.com/shhac/agent-stripe/internal/commands/charge"
 	"github.com/shhac/agent-stripe/internal/commands/customer"
+	"github.com/shhac/agent-stripe/internal/commands/dispute"
 	"github.com/shhac/agent-stripe/internal/commands/event"
+	"github.com/shhac/agent-stripe/internal/commands/paymentintent"
+	"github.com/shhac/agent-stripe/internal/commands/payout"
+	"github.com/shhac/agent-stripe/internal/commands/refund"
 )
 
 func main() {
@@ -21,14 +27,26 @@ func main() {
 
 	reg := &cli.Registry{
 		Commands: map[string]cli.CommandRunner{
-			"account":  account.Run,
-			"customer": customer.Run,
-			"event":    event.Run,
+			"account":        account.Run,
+			"customer":       customer.Run,
+			"event":          event.Run,
+			"charge":         charge.Run,
+			"payment-intent": paymentintent.Run,
+			"refund":         refund.Run,
+			"dispute":        dispute.Run,
+			"balance":        balance.Run,
+			"payout":         payout.Run,
 		},
 		UsageStrings: map[string]string{
-			"account":  account.Usage,
-			"customer": customer.Usage,
-			"event":    event.Usage,
+			"account":        account.Usage,
+			"customer":       customer.Usage,
+			"event":          event.Usage,
+			"charge":         charge.Usage,
+			"payment-intent": paymentintent.Usage,
+			"refund":         refund.Usage,
+			"dispute":        dispute.Usage,
+			"balance":        balance.Usage,
+			"payout":         payout.Usage,
 		},
 	}
 	cli.Dispatch(ctx, reg, os.Args[1:])
