@@ -1,6 +1,6 @@
 # Phase 4 — Plan 3: CLI help/usage audit
 
-Status: draft
+Status: done
 Parent: [04-polish.md](./04-polish.md)
 
 ## Goal
@@ -175,6 +175,12 @@ sweep because it lives outside the 13 resource packages. Confirm its
 - 2026-05-24 — Plan drafted. Single grep already surfaced one stale
   "Tracked for Phase 4" reference (invoice.go:45) — strong signal there
   are a few more small inconsistencies worth a single focused pass.
+- 2026-05-24 — Implemented in 23ddbfc. Edits landed across 13 command Usage
+  blocks plus invoice_test.go. No structural changes surfaced (the `--expand`
+  §4 drift check was vacuous — no per-command block documented `--expand`).
+  Kicked out as separate follow-up: top-level help iterates `reg.UsageStrings`
+  as a Go map, so `resource` isn't deterministically grouped as a
+  meta-command — per the "structural → separate ticket" rule.
 - 2026-05-24 — Plan revised after review. Added: list-only "no Search
   API" disclaimer check across all six list-only resources (was
   refund-only); `--stream` documented-iff-supported check; `--expand`
