@@ -1,4 +1,4 @@
-module github.com/shhac/agent-stripe
+module github.com/simonperryman/agent-stripe
 
 go 1.26.2
 

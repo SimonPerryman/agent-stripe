@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/shhac/agent-stripe/internal/cli"
-	"github.com/shhac/agent-stripe/internal/config"
+	"github.com/simonperryman/agent-stripe/internal/cli"
+	"github.com/simonperryman/agent-stripe/internal/config"
 )
 
 func TestRefundList_RejectsBothChargeAndPaymentIntent(t *testing.T) {

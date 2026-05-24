@@ -6,7 +6,7 @@ Modeled on [agent-mongo](https://github.com/shhac/agent-mongo) and [agent-dd](ht
 
 ## Status
 
-🚧 Pre-release. Phases 1–2 (scaffolding + `account`, `customer`, `event`, and the Payments resources) are implemented; Phases 3–4 are still planned. See [plans/v1/](plans/v1/).
+🚧 Pre-release. Phases 1–4 are implemented: scaffolding + `account`, `customer`, `event`, Payments, Billing, search across the resources Stripe supports, `--stream` NDJSON output, and `resource describe`. Packaging + Homebrew tap publish is the remaining open item. See [plans/v1/](plans/v1/).
 
 Legend: ✅ shipped · 🚧 in progress · ⏳ planned
 
@@ -24,14 +24,14 @@ Store API keys locally, switch between accounts, never echo secrets back to the 
 | `account test [alias]` | ✅ | `GET /v1/account` — verifies key works |
 | `account set-default <alias>` | ✅ | |
 
-### Customers 🚧
-| `customer get <id>` ✅ · `customer list` ✅ · `customer search --query` ⏳ |
+### Customers ✅
+| `customer get <id>` ✅ · `customer list` ✅ · `customer search --query` ✅ |
 
-### Payments 🚧
+### Payments ✅
 | Resource | Commands | Status |
 |---|---|---|
-| `charge` | `get`, `list` ✅ · `search` ⏳ | 🚧 |
-| `payment-intent` | `get`, `list` ✅ · `search` ⏳ | 🚧 |
+| `charge` | `get`, `list`, `search` | ✅ |
+| `payment-intent` | `get`, `list`, `search` | ✅ |
 | `refund` | `get`, `list` | ✅ |
 | `dispute` | `get`, `list` | ✅ |
 | `balance` | `get`, `transactions` | ✅ |
@@ -57,10 +57,17 @@ Paths aren't validated — typos return the un-expanded shape silently. See each
 ### Billing ✅
 | Resource | Commands | Status |
 |---|---|---|
-| `subscription` | `get`, `list` | ✅ |
-| `invoice` | `get`, `list` | ✅ |
-| `product` | `get`, `list` | ✅ |
-| `price` | `get`, `list` | ✅ |
+| `subscription` | `get`, `list`, `search` | ✅ |
+| `invoice` | `get`, `list`, `search` | ✅ |
+| `product` | `get`, `list`, `search` | ✅ |
+| `price` | `get`, `list`, `search` | ✅ |
+
+**Search vs list** — `list` is filter-on-fields with strict consistency; `search` is Stripe's [search query language](https://docs.stripe.com/search#search-query-language) with eventual consistency (~1 min lag) and an opaque `--page` token (not interchangeable with `list`'s `--starting-after`):
+
+```sh
+agent-stripe charge search --query 'amount>5000 AND status:"succeeded"' --limit 20
+agent-stripe customer search --query 'email:"alice@example.com"'
+```
 
 Reconciling a customer complaint:
 
@@ -84,17 +91,27 @@ The core debugging tool — lets an agent reconstruct what happened to an object
 ### Config ⏳
 | `config get/set/reset/list-keys` | ⏳ |
 
-### Discoverability ⏳
+### Discoverability ✅
 - `agent-stripe usage` — top-level LLM-optimized docs
 - `<command> usage` — per-command docs with examples
-- `resource describe <name>` — prints the field/type tree for a Stripe resource (reflected from `stripe-go`), so agents can learn a shape without burning an API call
+- `resource describe <name> [--depth N]` — emits the field/type tree (reflected from `stripe-go`) plus the curated `expandPaths` list. **No API call.** Useful for "what can I expand on a subscription?" or "what fields exist on a charge?" without spending a request.
 
-### Output ⏳
+### Output ✅
 - JSON to stdout; errors as `{ "error": "...", "fixableBy": "human" | "retry" | "agent" }` to stderr
-- Long strings truncated with `{field}Length` companion; `--full` or `--expand <fields>` to opt out
+- Long strings truncated with `{field}Length` companion; `--full` skips truncation entirely, or `--expand <leaf|dotted.path>` opts out per-field
 - `--expand-stripe <fields>` — passthrough to Stripe's `expand[]` for nested resources
-- `--stream` — NDJSON for large lists
+- `--stream` — NDJSON for large lists/searches; one header line then one record per line, paginates Stripe until exhausted or `--limit` hit
 - Every response tagged with `mode: test | live`
+
+**Streaming** — `--stream` works with both `list` and `search`. Pipes cleanly to `head`, redirects to a file, and exits 0 on broken pipe:
+
+```sh
+agent-stripe charge list --created-gt 1735689600 --stream | head -5
+agent-stripe invoice list --stream > invoices.ndjson
+agent-stripe customer search --query 'created>1735689600' --stream | jq -r '.id'
+```
+
+Under `--stream`, `--limit` becomes a hard stop (default is unbounded — paginate everything); `--starting-after` (list) and `--page` (search) act as resume points.
 
 ### Safety ⏳
 - **Read-only at the HTTP boundary** — no `POST`/`DELETE` paths importable from the Stripe client wrapper
@@ -126,8 +143,24 @@ Without `STRIPE_TEST_KEY` set, the suite skips cleanly.
 
 ## Install
 
-⏳ Planned distribution:
+Homebrew (once the tap is published — release config in `.goreleaser.yml`):
+
 ```sh
-brew install shhac/tap/agent-stripe
-npx skills add shhac/agent-stripe   # Claude Code skill
+brew install simonperryman/tap/agent-stripe
 ```
+
+From source:
+
+```sh
+go install github.com/simonperryman/agent-stripe/cmd/agent-stripe@latest
+```
+
+Claude Code skill: see [SKILL.md](SKILL.md) at the repo root. Distribution via `npx skills add simonperryman/agent-stripe` is planned.
+
+First-time setup (regardless of install method):
+
+```sh
+agent-stripe account add default --form --default
+```
+
+`--form` opens an OS dialog so the secret key never enters the agent transcript. The key is stored in the OS keychain (macOS Keychain in v1).

@@ -12,7 +12,7 @@ Phase 1 is also where the **read-only chokepoint** (`internal/stripe/readonly.go
 
 ### 1. Module + repo hygiene
 
-- `go mod init github.com/shhac/agent-stripe`
+- `go mod init github.com/simonperryman/agent-stripe`
 - Pin Go version in `go.mod` (latest stable, whatever `go version` reports locally).
 - Add `github.com/stripe/stripe-go/v85` and `github.com/zalando/go-keyring`.
 - `.gitignore`: `bin/`, `*.local.*`, `coverage.out`, IDE folders, `~/.config/agent-stripe/` is user-side so doesn't need ignoring but worth a comment in README.

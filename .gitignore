@@ -3,5 +3,6 @@ bin/
 coverage.out
 .idea/
 .vscode/
+.serena/
 .DS_Store
 # Note: ~/.config/agent-stripe/ is user-side, not in the repo.

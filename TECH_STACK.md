@@ -22,8 +22,8 @@
 
 - `go build -ldflags="-s -w"` for release binaries
 - GitHub Actions matrix: darwin/arm64, darwin/amd64, linux/amd64, linux/arm64
-- Homebrew tap: `shhac/tap/agent-stripe`
-- Claude Code skill: `npx skills add shhac/agent-stripe`
+- Homebrew tap: `simonperryman/tap/agent-stripe`
+- Claude Code skill: `npx skills add simonperryman/agent-stripe`
 
 ## Project layout
 

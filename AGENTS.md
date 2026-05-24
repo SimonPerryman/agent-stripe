@@ -11,7 +11,7 @@ See [PLAN.md](PLAN.md) for scope and phasing, [TECH_STACK.md](TECH_STACK.md) for
 - **Secrets never round-trip the agent** — API keys live in the OS keychain (Keychain / Secret Service / Credential Manager) via [`zalando/go-keyring`](https://github.com/zalando/go-keyring). The config file only holds `{alias, mode, keychain_ref}`. The `--form` flag prompts via OS-native dialog (osascript / zenity / PowerShell) so the agent driving the CLI never sees the secret on its command line or in its scrollback.
 - **JSON or nothing** — all output is JSON to stdout, errors are `{ "error": "...", "fixableBy": "human" | "retry" | "agent" }` to stderr with non-zero exit. No human-friendly modes, no colourised tables, no interactive prompts in the data path.
 - **Config over environment detection** ([12-factor](https://12factor.net/config)) — branch on explicit env vars (`AGENT_STRIPE_ACCOUNT`, `AGENT_STRIPE_TIMEOUT`), never on a `prod`/`dev` label. Same code path everywhere; only config changes.
-- **LLM-discoverable** — `agent-stripe usage` and `<command> usage` print concise, agent-friendly docs. Help text is part of the product, not an afterthought.
+- **LLM-discoverable** — `agent-stripe usage` and `<command> usage` print concise, agent-friendly docs; `agent-stripe resource describe <name>` reflects over the SDK structs to emit a field tree without spending an API call. Help text is part of the product, not an afterthought.
 
 ## Architecture
 

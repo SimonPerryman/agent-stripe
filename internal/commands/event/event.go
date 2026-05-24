@@ -12,9 +12,9 @@ import (
 	"io"
 	"os"
 
-	"github.com/shhac/agent-stripe/internal/cli"
-	"github.com/shhac/agent-stripe/internal/output"
-	agentstripe "github.com/shhac/agent-stripe/internal/stripe"
+	"github.com/simonperryman/agent-stripe/internal/cli"
+	"github.com/simonperryman/agent-stripe/internal/output"
+	agentstripe "github.com/simonperryman/agent-stripe/internal/stripe"
 
 	stripeapi "github.com/stripe/stripe-go/v85"
 )

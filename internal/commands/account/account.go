@@ -16,10 +16,10 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/shhac/agent-stripe/internal/cli"
-	"github.com/shhac/agent-stripe/internal/config"
-	"github.com/shhac/agent-stripe/internal/output"
-	agentstripe "github.com/shhac/agent-stripe/internal/stripe"
+	"github.com/simonperryman/agent-stripe/internal/cli"
+	"github.com/simonperryman/agent-stripe/internal/config"
+	"github.com/simonperryman/agent-stripe/internal/output"
+	agentstripe "github.com/simonperryman/agent-stripe/internal/stripe"
 
 	stripeapi "github.com/stripe/stripe-go/v85"
 )
@@ -264,7 +264,7 @@ func runTest(ctx context.Context, opts *cli.GlobalOpts, args []string) error {
 		"defaultCurrency": m["default_currency"],
 		"email":           m["email"],
 	}
-	rendered, err := output.Render(slim, output.Options{Full: opts.Full, Expand: opts.Expand})
+	rendered, err := output.Render(slim, output.Options{Full: opts.Full, Expand: opts.Expand, ExpandPaths: opts.ExpandPaths})
 	if err != nil {
 		return err
 	}

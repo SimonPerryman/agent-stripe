@@ -41,9 +41,14 @@ type Scan struct {
 
 // Options control how Data is rendered (truncation, expansion, full).
 type Options struct {
-	Full           bool
-	Expand         []string // field names to skip truncation on
-	TruncateLength int      // 0 = DefaultTruncateLength
+	Full   bool
+	Expand []string // bare field names — matched as leaf names anywhere in the tree
+	// ExpandPaths is dotted paths like "lines.data.description" — matched against
+	// the full path from the root of Data. More precise than Expand: lets an
+	// agent skip truncation on one specific field without globbing every
+	// same-named leaf in the tree.
+	ExpandPaths    []string
+	TruncateLength int // 0 = DefaultTruncateLength
 }
 
 // Render applies the options to data: walks the structure, prunes empties,
@@ -70,21 +75,33 @@ func Render(data any, opts Options) (any, error) {
 	for _, f := range opts.Expand {
 		expandSet[f] = struct{}{}
 	}
-	return walk(tree, "", opts.Full, expandSet, tl), nil
+	pathSet := make(map[string]struct{}, len(opts.ExpandPaths))
+	for _, p := range opts.ExpandPaths {
+		pathSet[p] = struct{}{}
+	}
+	return walk(tree, "", "", opts.Full, expandSet, pathSet, tl), nil
 }
 
-func walk(node any, key string, full bool, expand map[string]struct{}, maxLen int) any {
+// walk recurses through the decoded JSON tree. `key` is the immediate map key
+// (leaf name) and `path` is the dotted path from the root, used for
+// ExpandPaths matching. Slice indexes are not included in the path — agents
+// pass `lines.data.description`, not `lines.data.0.description`.
+func walk(node any, key, path string, full bool, expand, expandPaths map[string]struct{}, maxLen int) any {
 	switch v := node.(type) {
 	case map[string]any:
 		out := make(map[string]any, len(v))
 		for k, child := range v {
-			processed := walk(child, k, full, expand, maxLen)
+			childPath := k
+			if path != "" {
+				childPath = path + "." + k
+			}
+			processed := walk(child, k, childPath, full, expand, expandPaths, maxLen)
 			if isEmpty(processed) {
 				continue
 			}
 			out[k] = processed
 			if s, ok := processed.(string); ok && !full {
-				if _, keep := expand[k]; !keep {
+				if !shouldExpand(k, childPath, expand, expandPaths) {
 					if orig, ok := child.(string); ok && len(orig) > maxLen && len(s) <= maxLen+len("…") {
 						out[k+"Length"] = len(orig)
 					}
@@ -98,14 +115,16 @@ func walk(node any, key string, full bool, expand map[string]struct{}, maxLen in
 	case []any:
 		out := make([]any, 0, len(v))
 		for _, child := range v {
-			out = append(out, walk(child, key, full, expand, maxLen))
+			// Path does not include the slice index — keep ExpandPaths
+			// matching positional-agnostic.
+			out = append(out, walk(child, key, path, full, expand, expandPaths, maxLen))
 		}
 		return out
 	case string:
 		if full {
 			return v
 		}
-		if _, keep := expand[key]; keep {
+		if shouldExpand(key, path, expand, expandPaths) {
 			return v
 		}
 		if len(v) > maxLen {
@@ -115,6 +134,18 @@ func walk(node any, key string, full bool, expand map[string]struct{}, maxLen in
 	default:
 		return v
 	}
+}
+
+func shouldExpand(leaf, path string, expand, expandPaths map[string]struct{}) bool {
+	if _, ok := expand[leaf]; ok {
+		return true
+	}
+	if path != "" {
+		if _, ok := expandPaths[path]; ok {
+			return true
+		}
+	}
+	return false
 }
 
 func isEmpty(v any) bool {

@@ -1,0 +1,79 @@
+# Goreleaser config for agent-stripe.
+#
+# Build artifacts for macOS + Linux, generate a Homebrew formula, and publish
+# to simonperryman/homebrew-tap. To cut a release locally:
+#
+#   git tag v0.1.0 && git push origin v0.1.0
+#   goreleaser release --clean
+#
+# (Or wire it to GitHub Actions; the formula publishes itself when GORELEASER
+# has push rights to the tap repo.)
+
+version: 2
+
+project_name: agent-stripe
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: agent-stripe
+    main: ./cmd/agent-stripe
+    binary: agent-stripe
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}}
+      - -X main.date={{.Date}}
+
+archives:
+  - id: default
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    formats: [tar.gz]
+    files:
+      - README.md
+      - SKILL.md
+      - LICENSE*
+
+checksum:
+  name_template: "checksums.txt"
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+      - "Merge pull request"
+
+brews:
+  - name: agent-stripe
+    repository:
+      owner: simonperryman
+      name: homebrew-tap
+    homepage: "https://github.com/simonperryman/agent-stripe"
+    description: "Read-only Stripe CLI for AI agents"
+    license: "MIT"
+    install: |
+      bin.install "agent-stripe"
+    test: |
+      system "#{bin}/agent-stripe", "usage"
+    # macOS keychain is required for `account add`; Linux secret backend is TBD.
+    # Caveats lets brew surface this on install rather than burying it in the README.
+    caveats: |
+      agent-stripe stores Stripe API keys in your OS keychain.
+      First-time setup:
+        agent-stripe account add default --form --default

@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/shhac/agent-stripe/internal/cli"
-	"github.com/shhac/agent-stripe/internal/config"
-	agentstripe "github.com/shhac/agent-stripe/internal/stripe"
+	"github.com/simonperryman/agent-stripe/internal/cli"
+	"github.com/simonperryman/agent-stripe/internal/config"
+	agentstripe "github.com/simonperryman/agent-stripe/internal/stripe"
 )
 
 func TestInvoiceList_StatusAndSubscriptionPassthrough(t *testing.T) {

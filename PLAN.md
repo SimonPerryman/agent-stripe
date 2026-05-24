@@ -148,7 +148,7 @@ See [TECH_STACK.md](TECH_STACK.md) for the source of truth. Highlights:
 - **Language**: Go — single static binary, fast cold start for repeated agent invocations
 - **SDK**: `github.com/stripe/stripe-go/v85` — pins Stripe API version `2026-04-22.dahlia`
 - **CLI**: `cobra` (or stdlib `flag` if the subcommand tree stays small)
-- **Distribution**: Homebrew tap (`shhac/tap/agent-stripe`) + `npx skills add shhac/agent-stripe` for the Claude Code skill
+- **Distribution**: Homebrew tap (`simonperryman/tap/agent-stripe`) + `npx skills add simonperryman/agent-stripe` for the Claude Code skill
 - **Tests**: stdlib `testing` + `net/http/httptest` with mocked Stripe responses; recorded fixtures for integration
 
 ## Resolved design decisions

@@ -53,6 +53,67 @@ func TestRenderExpandSkipsField(t *testing.T) {
 	}
 }
 
+func TestRenderExpandPathsSkipsOnlyMatchingPath(t *testing.T) {
+	long := strings.Repeat("x", DefaultTruncateLength+50)
+	// invoice-shaped: lines.data[].description should be expanded, but a
+	// sibling description at the root should still truncate.
+	in := map[string]any{
+		"description": long,
+		"lines": map[string]any{
+			"data": []any{
+				map[string]any{"description": long, "amount": 100},
+				map[string]any{"description": long, "amount": 200},
+			},
+		},
+	}
+	out, err := Render(in, Options{ExpandPaths: []string{"lines.data.description"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := out.(map[string]any)
+	if got := m["description"].(string); !strings.HasSuffix(got, "…") {
+		t.Fatalf("root description should still truncate, got %q", got)
+	}
+	lines := m["lines"].(map[string]any)["data"].([]any)
+	for i, item := range lines {
+		desc := item.(map[string]any)["description"].(string)
+		if len(desc) != DefaultTruncateLength+50 {
+			t.Fatalf("lines[%d].description should be full, got len %d", i, len(desc))
+		}
+	}
+}
+
+func TestRenderExpandPathsMissingPathIsNoOp(t *testing.T) {
+	long := strings.Repeat("x", DefaultTruncateLength+50)
+	in := map[string]any{"description": long}
+	out, err := Render(in, Options{ExpandPaths: []string{"foo.bar"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := out.(map[string]any)
+	if !strings.HasSuffix(m["description"].(string), "…") {
+		t.Fatalf("unmatched path should not affect truncation")
+	}
+}
+
+func TestRenderExpandLeafStillMatchesAnywhere(t *testing.T) {
+	// Phase 2 dispute regression: --expand evidence skips truncation on
+	// deeply nested string fields named "evidence" (or any leaf passed).
+	long := strings.Repeat("x", DefaultTruncateLength+50)
+	in := map[string]any{
+		"evidence": map[string]any{
+			"customer_communication": long,
+		},
+		"id": "dp_1",
+	}
+	out, _ := Render(in, Options{Expand: []string{"customer_communication"}})
+	m := out.(map[string]any)
+	got := m["evidence"].(map[string]any)["customer_communication"].(string)
+	if len(got) != DefaultTruncateLength+50 {
+		t.Fatalf("leaf-name expand should match nested field")
+	}
+}
+
 func TestRenderPrunesEmpty(t *testing.T) {
 	in := map[string]any{"id": "cus_1", "name": nil, "email": "", "metadata": map[string]any{}}
 	out, _ := Render(in, Options{})

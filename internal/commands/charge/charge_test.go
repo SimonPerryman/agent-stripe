@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/shhac/agent-stripe/internal/cli"
-	"github.com/shhac/agent-stripe/internal/config"
-	agentstripe "github.com/shhac/agent-stripe/internal/stripe"
+	"github.com/simonperryman/agent-stripe/internal/cli"
+	"github.com/simonperryman/agent-stripe/internal/config"
+	agentstripe "github.com/simonperryman/agent-stripe/internal/stripe"
 )
 
 func TestChargeList_CustomerFilterPassthrough(t *testing.T) {
@@ -111,5 +111,35 @@ func captureStdout(t *testing.T) func() {
 		_ = w.Close()
 		os.Stdout = old
 		<-done
+	}
+}
+
+func TestChargeSearch_QueryAndPage(t *testing.T) {
+	var gotQuery string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotQuery = r.URL.RawQuery
+		_, _ = io.WriteString(w, `{"object":"search_result","data":[],"has_more":false,"url":"/v1/charges/search"}`)
+	}))
+	defer srv.Close()
+
+	opts := newOpts(srv.URL)
+	stdout := captureStdout(t)
+	if err := runSearch(context.Background(), opts, []string{"--query", `status:"succeeded"`, "--page", "tok_abc", "--limit", "5"}); err != nil {
+		t.Fatalf("runSearch: %v", err)
+	}
+	stdout()
+
+	if !strings.Contains(gotQuery, "query=status%3A%22succeeded%22") {
+		t.Errorf("expected query=... in querystring, got %q", gotQuery)
+	}
+	if !strings.Contains(gotQuery, "page=tok_abc") {
+		t.Errorf("expected page=tok_abc in querystring, got %q", gotQuery)
+	}
+}
+
+func TestChargeSearch_MissingQueryErrors(t *testing.T) {
+	opts := newOpts("http://unused")
+	if err := runSearch(context.Background(), opts, []string{}); err == nil {
+		t.Fatal("expected error when --query is missing")
 	}
 }

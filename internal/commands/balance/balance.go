@@ -11,9 +11,9 @@ import (
 	"io"
 	"os"
 
-	"github.com/shhac/agent-stripe/internal/cli"
-	"github.com/shhac/agent-stripe/internal/output"
-	agentstripe "github.com/shhac/agent-stripe/internal/stripe"
+	"github.com/simonperryman/agent-stripe/internal/cli"
+	"github.com/simonperryman/agent-stripe/internal/output"
+	agentstripe "github.com/simonperryman/agent-stripe/internal/stripe"
 
 	stripeapi "github.com/stripe/stripe-go/v85"
 )
@@ -64,7 +64,7 @@ func runGet(ctx context.Context, opts *cli.GlobalOpts, args []string) error {
 	if err != nil {
 		return err
 	}
-	rendered, err := output.Render(m, output.Options{Full: opts.Full, Expand: opts.Expand})
+	rendered, err := output.Render(m, output.Options{Full: opts.Full, Expand: opts.Expand, ExpandPaths: opts.ExpandPaths})
 	if err != nil {
 		return err
 	}
@@ -116,12 +116,20 @@ func runTransactions(ctx context.Context, opts *cli.GlobalOpts, args []string) e
 		params.CreatedRange = rq
 	}
 
+	if opts.Stream {
+		params.Limit = stripeapi.Int64(100)
+		cap := 0
+		if cli.LimitExplicit(fs) {
+			cap = *limit
+		}
+		return cli.StreamList(ctx, opts, opts.Client.V1BalanceTransactions.List(ctx, params), cap)
+	}
 	list := opts.Client.V1BalanceTransactions.List(ctx, params)
 	items, hasMore, nextCursor, err := agentstripe.CollectRawList(ctx, list, *limit)
 	if err != nil {
 		return err
 	}
-	rendered, err := output.Render(items, output.Options{Full: opts.Full, Expand: opts.Expand})
+	rendered, err := output.Render(items, output.Options{Full: opts.Full, Expand: opts.Expand, ExpandPaths: opts.ExpandPaths})
 	if err != nil {
 		return err
 	}

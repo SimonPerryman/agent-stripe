@@ -9,20 +9,21 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/shhac/agent-stripe/internal/cli"
-	"github.com/shhac/agent-stripe/internal/commands/account"
-	"github.com/shhac/agent-stripe/internal/commands/balance"
-	"github.com/shhac/agent-stripe/internal/commands/charge"
-	"github.com/shhac/agent-stripe/internal/commands/customer"
-	"github.com/shhac/agent-stripe/internal/commands/dispute"
-	"github.com/shhac/agent-stripe/internal/commands/event"
-	"github.com/shhac/agent-stripe/internal/commands/invoice"
-	"github.com/shhac/agent-stripe/internal/commands/paymentintent"
-	"github.com/shhac/agent-stripe/internal/commands/payout"
-	"github.com/shhac/agent-stripe/internal/commands/price"
-	"github.com/shhac/agent-stripe/internal/commands/product"
-	"github.com/shhac/agent-stripe/internal/commands/refund"
-	"github.com/shhac/agent-stripe/internal/commands/subscription"
+	"github.com/simonperryman/agent-stripe/internal/cli"
+	"github.com/simonperryman/agent-stripe/internal/commands/account"
+	"github.com/simonperryman/agent-stripe/internal/commands/balance"
+	"github.com/simonperryman/agent-stripe/internal/commands/charge"
+	"github.com/simonperryman/agent-stripe/internal/commands/customer"
+	"github.com/simonperryman/agent-stripe/internal/commands/dispute"
+	"github.com/simonperryman/agent-stripe/internal/commands/event"
+	"github.com/simonperryman/agent-stripe/internal/commands/invoice"
+	"github.com/simonperryman/agent-stripe/internal/commands/paymentintent"
+	"github.com/simonperryman/agent-stripe/internal/commands/payout"
+	"github.com/simonperryman/agent-stripe/internal/commands/price"
+	"github.com/simonperryman/agent-stripe/internal/commands/product"
+	"github.com/simonperryman/agent-stripe/internal/commands/refund"
+	"github.com/simonperryman/agent-stripe/internal/commands/resource"
+	"github.com/simonperryman/agent-stripe/internal/commands/subscription"
 )
 
 func main() {
@@ -44,6 +45,10 @@ func main() {
 			"invoice":        invoice.Run,
 			"product":        product.Run,
 			"price":          price.Run,
+			"resource":       resource.Run,
+		},
+		NoAccountNeeded: map[string]bool{
+			"resource": true, // pure reflection, no Stripe call
 		},
 		UsageStrings: map[string]string{
 			"account":        account.Usage,
@@ -59,6 +64,7 @@ func main() {
 			"invoice":        invoice.Usage,
 			"product":        product.Usage,
 			"price":          price.Usage,
+			"resource":       resource.Usage,
 		},
 	}
 	cli.Dispatch(ctx, reg, os.Args[1:])

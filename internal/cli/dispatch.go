@@ -12,9 +12,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/shhac/agent-stripe/internal/config"
-	"github.com/shhac/agent-stripe/internal/output"
-	agentstripe "github.com/shhac/agent-stripe/internal/stripe"
+	"github.com/simonperryman/agent-stripe/internal/config"
+	"github.com/simonperryman/agent-stripe/internal/output"
+	agentstripe "github.com/simonperryman/agent-stripe/internal/stripe"
 
 	stripeapi "github.com/stripe/stripe-go/v85"
 )
@@ -24,8 +24,10 @@ type GlobalOpts struct {
 	AccountAlias string
 	Live         bool
 	Full         bool
-	Expand       []string
+	Expand       []string // bare field names (no dots) — leaf-name match anywhere in the tree
+	ExpandPaths  []string // dotted paths (e.g. "lines.data.description") — exact path match
 	ExpandStripe []string // paths passed to Stripe API's expand[] (server-side)
+	Stream       bool     // NDJSON output: header line + one record per line, paginate until cap
 	Timeout      time.Duration
 
 	// Account is populated after resolution; nil for commands that don't
@@ -55,8 +57,9 @@ func Dispatch(ctx context.Context, reg *Registry, argv []string) {
 		account      = fs.String("a", "", "account alias (overrides AGENT_STRIPE_ACCOUNT and config default)")
 		live         = fs.Bool("live", false, "allow operations against a live-mode account")
 		full         = fs.Bool("full", false, "skip string truncation in output")
-		expand       = fs.String("expand", "", "comma-separated list of fields to skip truncation on")
+		expand       = fs.String("expand", "", "comma-separated fields/paths to skip truncation on; a token with a dot (e.g. lines.data.description) is matched as a path, bare names match any leaf")
 		expandStripe = fs.String("expand-stripe", "", "comma-separated Stripe API expand paths (server-side, e.g. customer,latest_charge)")
+		stream       = fs.Bool("stream", false, "emit NDJSON: one header line then one record per line; paginates Stripe until exhausted or --limit reached")
 		timeout      = fs.Duration("timeout", 30*time.Second, "per-request timeout")
 	)
 	// Stop parsing at the first non-flag so subcommands can have their own flags.
@@ -85,12 +88,15 @@ func Dispatch(ctx context.Context, reg *Registry, argv []string) {
 		output.Fail(fmt.Sprintf("unknown command %q (try `agent-stripe usage`)", cmd), output.FixableByAgent, 2)
 	}
 
+	leaves, paths := splitExpand(*expand)
 	opts := &GlobalOpts{
 		AccountAlias: resolveAccountAlias(*account),
 		Live:         *live,
 		Full:         *full,
-		Expand:       splitCSV(*expand),
+		Expand:       leaves,
+		ExpandPaths:  paths,
 		ExpandStripe: splitCSV(*expandStripe),
+		Stream:       *stream,
 		Timeout:      *timeout,
 	}
 
@@ -192,6 +198,20 @@ func liveOverridden(acc *config.Account) bool {
 	return !*acc.RequireLiveFlag
 }
 
+// splitExpand parses the --expand value, routing tokens containing a "." to
+// ExpandPaths (exact path match) and bare tokens to Expand (leaf-name match).
+// Backwards compatible: existing single-identifier values stay in Expand.
+func splitExpand(s string) (leaves, paths []string) {
+	for _, tok := range splitCSV(s) {
+		if strings.Contains(tok, ".") {
+			paths = append(paths, tok)
+		} else {
+			leaves = append(leaves, tok)
+		}
+	}
+	return leaves, paths
+}
+
 func splitCSV(s string) []string {
 	if s == "" {
 		return nil
@@ -206,7 +226,7 @@ func splitCSV(s string) []string {
 func printTopUsage(reg *Registry) {
 	var b strings.Builder
 	b.WriteString("agent-stripe — read-only Stripe CLI for AI agents\n\n")
-	b.WriteString("Usage:\n  agent-stripe [-a ALIAS] [--live] [--full] [--expand FIELDS] [--expand-stripe PATHS] [--timeout DUR] <command> [args]\n\n")
+	b.WriteString("Usage:\n  agent-stripe [-a ALIAS] [--live] [--full] [--expand FIELDS] [--expand-stripe PATHS] [--stream] [--timeout DUR] <command> [args]\n\n")
 	b.WriteString("Commands:\n")
 	for name, u := range reg.UsageStrings {
 		first := strings.SplitN(u, "\n", 2)[0]
