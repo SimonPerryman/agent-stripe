@@ -69,8 +69,8 @@ func TestIntegration_SearchSweep(t *testing.T) {
 			if _, ok := env["data"]; !ok {
 				t.Errorf("envelope missing data: %s", out)
 			}
-			if env["api_version"] == nil {
-				t.Errorf("envelope missing api_version: %s", out)
+			if env["apiVersion"] == nil {
+				t.Errorf("envelope missing apiVersion: %s", out)
 			}
 		})
 	}
