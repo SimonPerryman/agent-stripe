@@ -32,42 +32,22 @@ func main() {
 	defer cancel()
 
 	reg := &cli.Registry{
-		Commands: map[string]cli.CommandRunner{
-			"account":        account.Run,
-			"customer":       customer.Run,
-			"event":          event.Run,
-			"charge":         charge.Run,
-			"payment-intent": paymentintent.Run,
-			"refund":         refund.Run,
-			"dispute":        dispute.Run,
-			"balance":        balance.Run,
-			"payout":         payout.Run,
-			"transfer":       transfer.Run,
-			"subscription":   subscription.Run,
-			"invoice":        invoice.Run,
-			"product":        product.Run,
-			"price":          price.Run,
-			"resource":       resource.Run,
-		},
-		NoAccountNeeded: map[string]bool{
-			"resource": true, // pure reflection, no Stripe call
-		},
-		UsageStrings: map[string]string{
-			"account":        account.Usage,
-			"customer":       customer.Usage,
-			"event":          event.Usage,
-			"charge":         charge.Usage,
-			"payment-intent": paymentintent.Usage,
-			"refund":         refund.Usage,
-			"dispute":        dispute.Usage,
-			"balance":        balance.Usage,
-			"payout":         payout.Usage,
-			"transfer":       transfer.Usage,
-			"subscription":   subscription.Usage,
-			"invoice":        invoice.Usage,
-			"product":        product.Usage,
-			"price":          price.Usage,
-			"resource":       resource.Usage,
+		Commands: map[string]cli.CommandSpec{
+			"account":        {Run: account.Run, Usage: account.Usage},
+			"customer":       {Run: customer.Run, Usage: customer.Usage},
+			"event":          {Run: event.Run, Usage: event.Usage},
+			"charge":         {Run: charge.Run, Usage: charge.Usage},
+			"payment-intent": {Run: paymentintent.Run, Usage: paymentintent.Usage},
+			"refund":         {Run: refund.Run, Usage: refund.Usage},
+			"dispute":        {Run: dispute.Run, Usage: dispute.Usage},
+			"balance":        {Run: balance.Run, Usage: balance.Usage},
+			"payout":         {Run: payout.Run, Usage: payout.Usage},
+			"transfer":       {Run: transfer.Run, Usage: transfer.Usage},
+			"subscription":   {Run: subscription.Run, Usage: subscription.Usage},
+			"invoice":        {Run: invoice.Run, Usage: invoice.Usage},
+			"product":        {Run: product.Run, Usage: product.Usage},
+			"price":          {Run: price.Run, Usage: price.Usage},
+			"resource":       {Run: resource.Run, Usage: resource.Usage, NoAccount: true}, // pure reflection, no Stripe call
 		},
 	}
 	cli.Dispatch(ctx, reg, os.Args[1:])

@@ -42,11 +42,17 @@ type GlobalOpts struct {
 // CommandRunner is the contract every command package implements.
 type CommandRunner func(ctx context.Context, opts *GlobalOpts, args []string) error
 
-// Registry maps top-level command names to their runner.
+// CommandSpec bundles everything the dispatcher needs to know about a top-level
+// command. One entry per command — no parallel maps to drift out of sync.
+type CommandSpec struct {
+	Run       CommandRunner
+	Usage     string
+	NoAccount bool // command works without a resolved Stripe account
+}
+
+// Registry maps top-level command names to their spec.
 type Registry struct {
-	Commands        map[string]CommandRunner
-	UsageStrings    map[string]string
-	NoAccountNeeded map[string]bool // commands that work without a resolved account
+	Commands map[string]CommandSpec
 }
 
 // Dispatch parses global flags then dispatches to the right command. It does
@@ -85,7 +91,7 @@ func Dispatch(ctx context.Context, reg *Registry, argv []string) {
 		os.Exit(0)
 	}
 
-	runner, ok := reg.Commands[cmd]
+	spec, ok := reg.Commands[cmd]
 	if !ok {
 		output.Fail(fmt.Sprintf("unknown command %q (try `agent-stripe usage`)", cmd), output.FixableByAgent, 2)
 	}
@@ -104,10 +110,10 @@ func Dispatch(ctx context.Context, reg *Registry, argv []string) {
 	}
 
 	// Account resolution + live-mode gate happens here, once, for every
-	// command that needs it. Commands like `account add` opt out via
-	// NoAccountNeeded so they can bootstrap the first alias.
-	if !needsAccount(reg, cmd, rest[1:]) {
-		if err := runner(ctx, opts, rest[1:]); err != nil {
+	// command that needs it. Commands set NoAccount on their spec to opt out
+	// so they can bootstrap the first alias.
+	if !needsAccount(spec, cmd, rest[1:]) {
+		if err := spec.Run(ctx, opts, rest[1:]); err != nil {
 			output.Fail(err.Error(), output.FixableByAgent, 1)
 		}
 		os.Exit(0)
@@ -130,7 +136,7 @@ func Dispatch(ctx context.Context, reg *Registry, argv []string) {
 	}
 	opts.Client = agentstripe.NewClient(secret, "", opts.Timeout)
 
-	if err := runner(ctx, opts, rest[1:]); err != nil {
+	if err := spec.Run(ctx, opts, rest[1:]); err != nil {
 		output.Fail(err.Error(), output.FixableByAgent, 1)
 	}
 }
@@ -155,8 +161,8 @@ func resolveAccountAlias(flagVal string) string {
 // needsAccount reports whether a command requires a resolved account before
 // it runs. `account` subcommands like `add`, `list`, `remove`, `set-default`,
 // `usage` work without one; `test` does need one.
-func needsAccount(reg *Registry, cmd string, rest []string) bool {
-	if reg.NoAccountNeeded[cmd] {
+func needsAccount(spec CommandSpec, cmd string, rest []string) bool {
+	if spec.NoAccount {
 		// The top-level command opts out entirely.
 		return false
 	}
@@ -231,8 +237,8 @@ func printTopUsage(reg *Registry) {
 	b.WriteString("agent-stripe — read-only Stripe CLI for AI agents\n\n")
 	b.WriteString("Usage:\n  agent-stripe [-a ALIAS] [--live] [--full] [--expand FIELDS] [--expand-stripe PATHS] [--stream] [--rate-limit N] [--timeout DUR] <command> [args]\n\n")
 	b.WriteString("Commands:\n")
-	for name, u := range reg.UsageStrings {
-		first := strings.SplitN(u, "\n", 2)[0]
+	for name, spec := range reg.Commands {
+		first := strings.SplitN(spec.Usage, "\n", 2)[0]
 		fmt.Fprintf(&b, "  %-12s %s\n", name, first)
 	}
 	b.WriteString("\nUse `agent-stripe <command> usage` for command-specific help.\n")
