@@ -22,6 +22,11 @@ func NewClient(apiKey, baseURL string, timeout time.Duration) *stripeapi.Client 
 	}
 	cfg := &stripeapi.BackendConfig{
 		HTTPClient: httpClient,
+		// Silence the SDK's own ERROR-level logger — every 4xx/5xx response
+		// gets logged to stderr by default, which leaks past the single-line
+		// JSON error envelope agents parse. We surface Stripe errors through
+		// output.FailFromStripeError instead.
+		LeveledLogger: &stripeapi.LeveledLogger{Level: stripeapi.LevelNull},
 	}
 	if baseURL != "" {
 		cfg.URL = stripeapi.String(baseURL)

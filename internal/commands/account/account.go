@@ -66,7 +66,7 @@ func runAdd(args []string) error {
 	keyFlag := fs.String("key", "", "API key (sk_test_... or sk_live_...)")
 	formFlag := fs.Bool("form", false, "prompt for the key via OS-native dialog (macOS)")
 	defaultFlag := fs.Bool("default", false, "set this account as the default")
-	if err := fs.Parse(args); err != nil {
+	if err := fs.Parse(cli.ReorderFlagsFirst(args, fs)); err != nil {
 		return err
 	}
 	rest := fs.Args()

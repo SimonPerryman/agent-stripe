@@ -84,24 +84,16 @@ func runDescribe(_ context.Context, opts *cli.GlobalOpts, args []string) error {
 	if len(args) == 0 {
 		return errors.New("usage: resource describe <name> [--depth N]")
 	}
-	var name string
-	flags := make([]string, 0, len(args))
-	for _, a := range args {
-		if name == "" && !strings.HasPrefix(a, "-") {
-			name = a
-			continue
-		}
-		flags = append(flags, a)
-	}
-	if name == "" {
-		return errors.New("usage: resource describe <name> [--depth N]")
-	}
 	fs := flag.NewFlagSet("resource describe", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	depth := fs.Int("depth", defaultDepth, "max field-tree depth (default 3)")
-	if err := fs.Parse(flags); err != nil {
+	if err := fs.Parse(cli.ReorderFlagsFirst(args, fs)); err != nil {
 		return err
 	}
+	if fs.NArg() != 1 {
+		return errors.New("usage: resource describe <name> [--depth N]")
+	}
+	name := fs.Arg(0)
 	z, ok := resourceRegistry[name]
 	if !ok {
 		return fmt.Errorf("unknown resource %q (try one of: %s)", name, strings.Join(knownResources(), ", "))

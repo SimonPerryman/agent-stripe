@@ -137,15 +137,17 @@ func Dispatch(ctx context.Context, reg *Registry, argv []string) {
 	opts.Client = agentstripe.NewClient(secret, "", opts.Timeout)
 
 	if err := spec.Run(ctx, opts, rest[1:]); err != nil {
-		output.Fail(err.Error(), output.FixableByAgent, 1)
+		output.FailFromStripeError(err, output.FixableByAgent, 1)
 	}
 }
 
-// parseUntilSubcommand parses flags up to the first non-flag arg. Stdlib flag
-// stops at the first non-flag by default with ContinueOnError, but only if we
-// don't pass `-flag value` afterwards — which we won't, by convention.
+// parseUntilSubcommand pulls recognized global flags to the front of argv so
+// `agent-stripe charge list --limit 5 --stream` is equivalent to passing
+// --stream before the subcommand. Unknown flags (subcommand-specific, like
+// --limit here) are left in place; fs.Parse then stops at the first non-flag,
+// which is the subcommand name.
 func parseUntilSubcommand(fs *flag.FlagSet, argv []string) error {
-	return fs.Parse(argv)
+	return fs.Parse(ReorderFlagsFirst(argv, fs))
 }
 
 func resolveAccountAlias(flagVal string) string {
