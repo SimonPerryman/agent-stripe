@@ -16,9 +16,13 @@ import (
 	"github.com/shhac/agent-stripe/internal/commands/customer"
 	"github.com/shhac/agent-stripe/internal/commands/dispute"
 	"github.com/shhac/agent-stripe/internal/commands/event"
+	"github.com/shhac/agent-stripe/internal/commands/invoice"
 	"github.com/shhac/agent-stripe/internal/commands/paymentintent"
 	"github.com/shhac/agent-stripe/internal/commands/payout"
+	"github.com/shhac/agent-stripe/internal/commands/price"
+	"github.com/shhac/agent-stripe/internal/commands/product"
 	"github.com/shhac/agent-stripe/internal/commands/refund"
+	"github.com/shhac/agent-stripe/internal/commands/subscription"
 )
 
 func main() {
@@ -36,6 +40,10 @@ func main() {
 			"dispute":        dispute.Run,
 			"balance":        balance.Run,
 			"payout":         payout.Run,
+			"subscription":   subscription.Run,
+			"invoice":        invoice.Run,
+			"product":        product.Run,
+			"price":          price.Run,
 		},
 		UsageStrings: map[string]string{
 			"account":        account.Usage,
@@ -47,6 +55,10 @@ func main() {
 			"dispute":        dispute.Usage,
 			"balance":        balance.Usage,
 			"payout":         payout.Usage,
+			"subscription":   subscription.Usage,
+			"invoice":        invoice.Usage,
+			"product":        product.Usage,
+			"price":          price.Usage,
 		},
 	}
 	cli.Dispatch(ctx, reg, os.Args[1:])

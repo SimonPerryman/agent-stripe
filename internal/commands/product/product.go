@@ -1,0 +1,163 @@
+// Package product implements `agent-stripe product ...`.
+package product
+
+import (
+	"context"
+	"errors"
+	"flag"
+	"fmt"
+	"io"
+	"os"
+	"strings"
+
+	"github.com/shhac/agent-stripe/internal/cli"
+	"github.com/shhac/agent-stripe/internal/output"
+	agentstripe "github.com/shhac/agent-stripe/internal/stripe"
+
+	stripeapi "github.com/stripe/stripe-go/v85"
+)
+
+const Usage = `product — read Stripe products
+
+Subcommands:
+  get <id>                                  Fetch one product (prod_...)
+  list [--active true|false] [--ids a,b,c] [--created-gt T] [--created-lt T]
+       [--limit N] [--starting-after PROD]  List products (cursor-paginated)
+
+Notes:
+  --active is tri-state: omit for no filter, --active=true for active only,
+  --active=false for archived only.
+  --ids batches up to 100 lookups in a single call — prefer it when you already
+  know the product ids (e.g. from a list of prices).
+
+Catalogs tend to be small. The default --limit is usually enough on its own.
+
+Recommended --expand-stripe paths:
+  default_price`
+
+func Run(ctx context.Context, opts *cli.GlobalOpts, args []string) error {
+	if len(args) == 0 {
+		fmt.Fprintln(os.Stderr, Usage)
+		return nil
+	}
+	switch args[0] {
+	case "get":
+		return runGet(ctx, opts, args[1:])
+	case "list":
+		return runList(ctx, opts, args[1:])
+	case "usage", "help":
+		fmt.Fprintln(os.Stderr, Usage)
+		return nil
+	}
+	return fmt.Errorf("unknown product subcommand %q", args[0])
+}
+
+func runGet(ctx context.Context, opts *cli.GlobalOpts, args []string) error {
+	if len(args) != 1 {
+		return errors.New("usage: product get <id>")
+	}
+	params := &stripeapi.ProductRetrieveParams{}
+	params.Expand = agentstripe.ExpandSlice(opts.ExpandStripe)
+	p, err := opts.Client.V1Products.Retrieve(ctx, args[0], params)
+	if err != nil {
+		return err
+	}
+	m, err := agentstripe.ToRawMap(p)
+	if err != nil {
+		return err
+	}
+	rendered, err := output.Render(m, output.Options{Full: opts.Full, Expand: opts.Expand})
+	if err != nil {
+		return err
+	}
+	return output.Emit(os.Stdout, output.Envelope{
+		Mode:       string(opts.Account.Mode),
+		Account:    opts.Account.Alias,
+		APIVersion: agentstripe.PinnedAPIVersion,
+		Data:       rendered,
+	})
+}
+
+func runList(ctx context.Context, opts *cli.GlobalOpts, args []string) error {
+	fs := flag.NewFlagSet("product list", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	active := fs.String("active", "", `tri-state: "", "true", or "false"`)
+	ids := fs.String("ids", "", "comma-separated product ids (up to 100)")
+	createdGT := fs.Int64("created-gt", 0, "filter: created > unix seconds")
+	createdLT := fs.Int64("created-lt", 0, "filter: created < unix seconds")
+	limit := fs.Int("limit", agentstripe.DefaultMaxResults, "max items to return (cap)")
+	startingAfter := fs.String("starting-after", "", "cursor: prod_... id from previous page")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+
+	params := &stripeapi.ProductListParams{}
+	params.Limit = stripeapi.Int64(int64(min(*limit, 100)))
+	params.Expand = agentstripe.ExpandSlice(opts.ExpandStripe)
+	if *active != "" {
+		b, err := parseTriBool(*active)
+		if err != nil {
+			return fmt.Errorf("--active: %w", err)
+		}
+		params.Active = stripeapi.Bool(b)
+	}
+	if *ids != "" {
+		params.IDs = splitStripeStrings(*ids)
+	}
+	if *startingAfter != "" {
+		params.StartingAfter = stripeapi.String(*startingAfter)
+	}
+	if *createdGT > 0 || *createdLT > 0 {
+		r := &stripeapi.RangeQueryParams{}
+		if *createdGT > 0 {
+			r.GreaterThan = *createdGT
+		}
+		if *createdLT > 0 {
+			r.LesserThan = *createdLT
+		}
+		params.CreatedRange = r
+	}
+
+	list := opts.Client.V1Products.List(ctx, params)
+	items, hasMore, nextCursor, err := agentstripe.CollectRawList(ctx, list, *limit)
+	if err != nil {
+		return err
+	}
+	rendered, err := output.Render(items, output.Options{Full: opts.Full, Expand: opts.Expand})
+	if err != nil {
+		return err
+	}
+	return output.Emit(os.Stdout, output.Envelope{
+		Mode:       string(opts.Account.Mode),
+		Account:    opts.Account.Alias,
+		APIVersion: agentstripe.PinnedAPIVersion,
+		Data:       rendered,
+		Page:       &output.Page{HasMore: hasMore, NextCursor: nextCursor, Count: len(items)},
+	})
+}
+
+// parseTriBool accepts "true" / "false" for the tri-state --active flag.
+// Empty string is handled by the caller (means "unset, no filter").
+func parseTriBool(s string) (bool, error) {
+	switch s {
+	case "true":
+		return true, nil
+	case "false":
+		return false, nil
+	}
+	return false, fmt.Errorf("expected true or false, got %q", s)
+}
+
+func splitStripeStrings(s string) []*string {
+	parts := strings.Split(s, ",")
+	out := make([]*string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+		v := p
+		out = append(out, &v)
+	}
+	return out
+}

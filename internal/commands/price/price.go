@@ -1,0 +1,161 @@
+// Package price implements `agent-stripe price ...`.
+package price
+
+import (
+	"context"
+	"errors"
+	"flag"
+	"fmt"
+	"io"
+	"os"
+	"strings"
+
+	"github.com/shhac/agent-stripe/internal/cli"
+	"github.com/shhac/agent-stripe/internal/output"
+	agentstripe "github.com/shhac/agent-stripe/internal/stripe"
+
+	stripeapi "github.com/stripe/stripe-go/v85"
+)
+
+const Usage = `price — read Stripe prices
+
+Subcommands:
+  get <id>                                  Fetch one price (price_...)
+  list [--product PROD] [--active true|false] [--currency usd]
+       [--type recurring|one_time] [--lookup-keys k1,k2]
+       [--limit N] [--starting-after PRICE] List prices (cursor-paginated)
+
+Every price belongs to a product. When fetching a single price, pass
+--expand-stripe product to see the parent in the same response.
+
+--lookup-keys is the highest-signal filter when you're working from
+human-readable identifiers (e.g. "pro_monthly_usd"). Up to 10 keys.
+
+--active is tri-state: omit for no filter, --active=true for active only,
+--active=false for archived only. --currency is normalised to lowercase
+silently (Stripe is case-insensitive on input).`
+
+func Run(ctx context.Context, opts *cli.GlobalOpts, args []string) error {
+	if len(args) == 0 {
+		fmt.Fprintln(os.Stderr, Usage)
+		return nil
+	}
+	switch args[0] {
+	case "get":
+		return runGet(ctx, opts, args[1:])
+	case "list":
+		return runList(ctx, opts, args[1:])
+	case "usage", "help":
+		fmt.Fprintln(os.Stderr, Usage)
+		return nil
+	}
+	return fmt.Errorf("unknown price subcommand %q", args[0])
+}
+
+func runGet(ctx context.Context, opts *cli.GlobalOpts, args []string) error {
+	if len(args) != 1 {
+		return errors.New("usage: price get <id>")
+	}
+	params := &stripeapi.PriceRetrieveParams{}
+	params.Expand = agentstripe.ExpandSlice(opts.ExpandStripe)
+	p, err := opts.Client.V1Prices.Retrieve(ctx, args[0], params)
+	if err != nil {
+		return err
+	}
+	m, err := agentstripe.ToRawMap(p)
+	if err != nil {
+		return err
+	}
+	rendered, err := output.Render(m, output.Options{Full: opts.Full, Expand: opts.Expand})
+	if err != nil {
+		return err
+	}
+	return output.Emit(os.Stdout, output.Envelope{
+		Mode:       string(opts.Account.Mode),
+		Account:    opts.Account.Alias,
+		APIVersion: agentstripe.PinnedAPIVersion,
+		Data:       rendered,
+	})
+}
+
+func runList(ctx context.Context, opts *cli.GlobalOpts, args []string) error {
+	fs := flag.NewFlagSet("price list", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	product := fs.String("product", "", "filter by product id (prod_...)")
+	active := fs.String("active", "", `tri-state: "", "true", or "false"`)
+	currency := fs.String("currency", "", "ISO 4217 currency (e.g. usd)")
+	priceType := fs.String("type", "", "recurring or one_time")
+	lookupKeys := fs.String("lookup-keys", "", "comma-separated lookup keys (up to 10)")
+	limit := fs.Int("limit", agentstripe.DefaultMaxResults, "max items to return (cap)")
+	startingAfter := fs.String("starting-after", "", "cursor: price_... id from previous page")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+
+	params := &stripeapi.PriceListParams{}
+	params.Limit = stripeapi.Int64(int64(min(*limit, 100)))
+	params.Expand = agentstripe.ExpandSlice(opts.ExpandStripe)
+	if *product != "" {
+		params.Product = stripeapi.String(*product)
+	}
+	if *active != "" {
+		b, err := parseTriBool(*active)
+		if err != nil {
+			return fmt.Errorf("--active: %w", err)
+		}
+		params.Active = stripeapi.Bool(b)
+	}
+	if *currency != "" {
+		params.Currency = stripeapi.String(strings.ToLower(*currency))
+	}
+	if *priceType != "" {
+		params.Type = stripeapi.String(*priceType)
+	}
+	if *lookupKeys != "" {
+		params.LookupKeys = splitStripeStrings(*lookupKeys)
+	}
+	if *startingAfter != "" {
+		params.StartingAfter = stripeapi.String(*startingAfter)
+	}
+
+	list := opts.Client.V1Prices.List(ctx, params)
+	items, hasMore, nextCursor, err := agentstripe.CollectRawList(ctx, list, *limit)
+	if err != nil {
+		return err
+	}
+	rendered, err := output.Render(items, output.Options{Full: opts.Full, Expand: opts.Expand})
+	if err != nil {
+		return err
+	}
+	return output.Emit(os.Stdout, output.Envelope{
+		Mode:       string(opts.Account.Mode),
+		Account:    opts.Account.Alias,
+		APIVersion: agentstripe.PinnedAPIVersion,
+		Data:       rendered,
+		Page:       &output.Page{HasMore: hasMore, NextCursor: nextCursor, Count: len(items)},
+	})
+}
+
+func parseTriBool(s string) (bool, error) {
+	switch s {
+	case "true":
+		return true, nil
+	case "false":
+		return false, nil
+	}
+	return false, fmt.Errorf("expected true or false, got %q", s)
+}
+
+func splitStripeStrings(s string) []*string {
+	parts := strings.Split(s, ",")
+	out := make([]*string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+		v := p
+		out = append(out, &v)
+	}
+	return out
+}

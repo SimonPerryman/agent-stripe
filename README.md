@@ -54,13 +54,24 @@ agent-stripe charge get ch_xxx --expand-stripe customer,balance_transaction
 
 Paths aren't validated — typos return the un-expanded shape silently. See each command's `usage` for the recommended set.
 
-### Billing ⏳
+### Billing ✅
 | Resource | Commands | Status |
 |---|---|---|
-| `subscription` | `get`, `list` | ⏳ |
-| `invoice` | `get`, `list` | ⏳ |
-| `product` | `get`, `list` | ⏳ |
-| `price` | `get`, `list` | ⏳ |
+| `subscription` | `get`, `list` | ✅ |
+| `invoice` | `get`, `list` | ✅ |
+| `product` | `get`, `list` | ✅ |
+| `price` | `get`, `list` | ✅ |
+
+Reconciling a customer complaint:
+
+```
+agent-stripe customer get cus_xxx
+agent-stripe subscription list --customer cus_xxx
+agent-stripe invoice list --subscription sub_xxx --status paid
+agent-stripe invoice get in_xxx --expand-stripe charge
+```
+
+`invoice preview` (formerly `upcoming`) is deferred — see plans/v1/03-billing.md §2.
 
 ### Events 🚧
 | `event list [--type] [--created-gt] [--created-lt] [--related <id>]` ✅ · `event get <id>` ⏳ |
