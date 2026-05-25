@@ -126,7 +126,7 @@ func knownResources() []string {
 // slices/arrays are descended once (with Repeated=true). depth bounds total
 // recursion; current is the current level (root = 0).
 func walkType(t reflect.Type, depth, current int) []fieldInfo {
-	for t.Kind() == reflect.Ptr {
+	for t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
 	if t.Kind() != reflect.Struct {
@@ -146,16 +146,16 @@ func walkType(t reflect.Type, depth, current int) []fieldInfo {
 		fi := fieldInfo{
 			Field:    name,
 			Type:     typeLabel(f.Type),
-			Nullable: f.Type.Kind() == reflect.Ptr || omitempty,
+			Nullable: f.Type.Kind() == reflect.Pointer || omitempty,
 		}
 		ft := f.Type
-		for ft.Kind() == reflect.Ptr {
+		for ft.Kind() == reflect.Pointer {
 			ft = ft.Elem()
 		}
 		if ft.Kind() == reflect.Slice || ft.Kind() == reflect.Array {
 			fi.Repeated = true
 			ft = ft.Elem()
-			for ft.Kind() == reflect.Ptr {
+			for ft.Kind() == reflect.Pointer {
 				ft = ft.Elem()
 			}
 		}
@@ -185,7 +185,7 @@ func parseJSONTag(tag string) (name string, omitempty bool) {
 // "*Customer", "[]*Item"). Full package paths are dropped — they're noise.
 func typeLabel(t reflect.Type) string {
 	switch t.Kind() {
-	case reflect.Ptr:
+	case reflect.Pointer:
 		return "*" + typeLabel(t.Elem())
 	case reflect.Slice, reflect.Array:
 		return "[]" + typeLabel(t.Elem())
