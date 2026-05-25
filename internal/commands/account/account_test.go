@@ -22,7 +22,7 @@ type memKeyring struct{ store map[string]string }
 
 func newMemKeyring() *memKeyring { return &memKeyring{store: map[string]string{}} }
 
-func (m *memKeyring) Set(s, k, v string) error    { m.store[s+"/"+k] = v; return nil }
+func (m *memKeyring) Set(s, k, v string) error { m.store[s+"/"+k] = v; return nil }
 func (m *memKeyring) Get(s, k string) (string, error) {
 	if v, ok := m.store[s+"/"+k]; ok {
 		return v, nil

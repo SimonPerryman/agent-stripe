@@ -148,8 +148,19 @@ Status: pending | in-progress | done | cut
 - `go vet ./...` — vet
 - `gofmt -w .` — format
 
-## Before committing
+## Before pushing
 
-- `gofmt -w . && go vet ./... && go test ./...`
+Run the full CI suite locally. CI fails on any of these, so don't push until they all pass:
+
+```sh
+gofmt -l .            # must print nothing — CI uses -l, not -w
+go vet ./...
+go build ./...
+go test -race ./...   # -race matches CI; plain `go test` can hide data races
+golangci-lint run     # same linter CI runs (v2.12.2)
+```
+
+One-liner: `test -z "$(gofmt -l .)" && go vet ./... && go build ./... && go test -race ./... && golangci-lint run`
+
 - For any change in `internal/stripe/readonly.go`, `internal/stripe/client.go`, or credential handling: also run integration tests with `STRIPE_TEST_KEY` set.
 - Never commit a real API key. `~/.config/agent-stripe/` and `*.local.*` are gitignored — keep it that way.
