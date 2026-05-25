@@ -2,8 +2,6 @@
 
 Read-only Stripe CLI for AI agents. Go, compiled to a single static binary. Modeled on [agent-mongo](https://github.com/shhac/agent-mongo) and [agent-dd](https://github.com/shhac/agent-dd).
 
-See [PLAN.md](PLAN.md) for scope and phasing, [TECH_STACK.md](TECH_STACK.md) for dependencies and layout.
-
 ## Principles
 
 - **Read-only by design** — the CLI exposes only `GET` / `list` / `search` against Stripe. One chokepoint (`internal/stripe/readonly.go`) rejects any non-read method. Adding a write operation is a deliberate, reviewed change. Agents explore; humans act.
@@ -88,7 +86,7 @@ Account resolution order: `-a` flag > `AGENT_STRIPE_ACCOUNT` env > config defaul
 ## Conventions — output
 
 - All output JSON to stdout. One JSON object per command (or one-per-line under `--stream`).
-- **Response envelope:** every successful response is `{ mode, account, apiVersion, data }`. The Stripe payload always lives under `data` — never at the top level. `list`/`search` add a `page` sibling for pagination; `event list --related` adds a `scan` sibling. See PLAN.md → "Response envelope" for the canonical shape.
+- **Response envelope:** every successful response is `{ mode, account, apiVersion, data }`. The Stripe payload always lives under `data` — never at the top level. `list`/`search` add a `page` sibling for pagination; `event list --related` adds a `scan` sibling.
 - Under `--stream`, emit the envelope once as the first NDJSON line (with `stream: true` and no `data`), then one record per line. Keeps the mode tag without repeating it on every record.
 - Long string fields (over `truncation.maxLength`, default 200) are truncated with a `…` suffix and a companion `{field}Length` key. Override per-call with `--full` or `--expand <fields>`.
 - Null / empty fields are pruned by default to reduce token cost in agent context windows.
@@ -105,7 +103,7 @@ Every non-trivial change has a plan in `plans/`. Create the plan before starting
 
 Folder taxonomy:
 
-- `plans/v1/` — initial build (phases from PLAN.md)
+- `plans/v1/` — initial build, phase by phase
 - `plans/v2/` — future tiers once v1 ships
 - `plans/bugfix/` — concrete bugfixes
 - `plans/infra/` — CI, release, brew tap, skills package
