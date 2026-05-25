@@ -72,7 +72,7 @@ agent-stripe resource describe subscription --depth 2
 ```sh
 agent-stripe account add sandbox --form           # sk_test_… → mode: test, no flag needed
 agent-stripe account add prod --form              # sk_live_… → mode: live, requires --live
-agent-stripe -a prod --live charge list
+agent-stripe --account prod --live charge list
 ```
 
 Every response carries `"mode": "test" | "live"` so an agent can verify which environment it's reading.

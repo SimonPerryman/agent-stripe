@@ -44,7 +44,9 @@ human-readable identifiers (e.g. "pro_monthly_usd"). Up to 10 keys.
 
 --active is tri-state: omit for no filter, --active=true for active only,
 --active=false for archived only. --currency is normalised to lowercase
-silently (Stripe is case-insensitive on input).`
+silently (Stripe is case-insensitive on input).
+
+Help: usage | help | -h | --help`
 
 func Run(ctx context.Context, opts *cli.GlobalOpts, args []string) error {
 	if len(args) == 0 {

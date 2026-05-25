@@ -1,0 +1,46 @@
+package cli
+
+import (
+	"flag"
+	"strings"
+	"testing"
+	"time"
+)
+
+// newGlobalsFlagSet mirrors the FlagSet registered in Dispatch. Kept in sync
+// with dispatch.go so tests can exercise global-flag parsing without invoking
+// Dispatch (which calls os.Exit).
+func newGlobalsFlagSet() (*flag.FlagSet, *string) {
+	fs := flag.NewFlagSet("agent-stripe", flag.ContinueOnError)
+	fs.SetOutput(new(strings.Builder)) // swallow usage on error
+	account := fs.String("account", "", "account alias")
+	fs.Bool("live", false, "")
+	fs.Bool("full", false, "")
+	fs.String("expand", "", "")
+	fs.String("expand-stripe", "", "")
+	fs.Bool("stream", false, "")
+	fs.Float64("rate-limit", 15.0, "")
+	fs.Duration("timeout", 30*time.Second, "")
+	return fs, account
+}
+
+func TestGlobalsFlagSet_AccountLongForm(t *testing.T) {
+	fs, account := newGlobalsFlagSet()
+	if err := fs.Parse(ReorderFlagsFirst([]string{"--account", "prod", "charge", "list"}, fs)); err != nil {
+		t.Fatalf("parse failed: %v", err)
+	}
+	if *account != "prod" {
+		t.Fatalf("--account: got %q, want %q", *account, "prod")
+	}
+	if rest := fs.Args(); len(rest) != 2 || rest[0] != "charge" || rest[1] != "list" {
+		t.Fatalf("positional args: got %v, want [charge list]", rest)
+	}
+}
+
+func TestGlobalsFlagSet_ShortAliasRejected(t *testing.T) {
+	fs, _ := newGlobalsFlagSet()
+	err := fs.Parse(ReorderFlagsFirst([]string{"-a", "prod", "charge", "list"}, fs))
+	if err == nil {
+		t.Fatal("expected -a to be rejected as unknown flag, got nil error")
+	}
+}

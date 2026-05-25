@@ -48,7 +48,9 @@ Recommended --expand-stripe paths:
   customer, latest_invoice, default_payment_method, items.data.price.product,
   pending_setup_intent
 
-Avoid expanding latest_invoice.lines on list — payload size balloons fast.`
+Avoid expanding latest_invoice.lines on list — payload size balloons fast.
+
+Help: usage | help | -h | --help`
 
 func Run(ctx context.Context, opts *cli.GlobalOpts, args []string) error {
 	if len(args) == 0 {

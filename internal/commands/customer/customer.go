@@ -32,7 +32,9 @@ Pagination: list uses --starting-after (a cus_ id); search uses --page (opaque
 next_page token). Not interchangeable.
 
 Streaming: pass --stream (top-level) on list/search to emit NDJSON over pages
-until --limit or exhausted.`
+until --limit or exhausted.
+
+Help: usage | help | -h | --help`
 
 func Run(ctx context.Context, opts *cli.GlobalOpts, args []string) error {
 	if len(args) == 0 {

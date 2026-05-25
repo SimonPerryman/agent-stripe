@@ -44,7 +44,9 @@ Streaming: pass --stream (top-level) on list/search to emit NDJSON over pages
 until --limit or exhausted.
 
 Common --expand-stripe paths:
-  latest_charge, customer, payment_method, latest_charge.balance_transaction`
+  latest_charge, customer, payment_method, latest_charge.balance_transaction
+
+Help: usage | help | -h | --help`
 
 func Run(ctx context.Context, opts *cli.GlobalOpts, args []string) error {
 	if len(args) == 0 {

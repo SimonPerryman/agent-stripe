@@ -34,7 +34,9 @@ Subcommands:
   test [alias]                                  Hit GET /v1/account to verify the key
 
 Keys must start with sk_test_ or sk_live_. Use --form on macOS for an OS-native
-dialog (so the agent driving the CLI never sees the secret).`
+dialog (so the agent driving the CLI never sees the secret).
+
+Help: usage | help | -h | --help`
 
 // Run dispatches the account subcommand.
 func Run(ctx context.Context, opts *cli.GlobalOpts, args []string) error {

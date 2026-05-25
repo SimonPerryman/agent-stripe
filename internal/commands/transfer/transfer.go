@@ -49,7 +49,9 @@ with ` + "`charge get`" + `.
 
 Recommended --expand-stripe paths:
   destination, source_transaction, balance_transaction,
-  source_transaction.balance_transaction, reversals`
+  source_transaction.balance_transaction, reversals
+
+Help: usage | help | -h | --help`
 
 func Run(ctx context.Context, opts *cli.GlobalOpts, args []string) error {
 	if len(args) == 0 {

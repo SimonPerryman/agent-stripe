@@ -61,7 +61,7 @@ func Dispatch(ctx context.Context, reg *Registry, argv []string) {
 	fs := flag.NewFlagSet("agent-stripe", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
 	var (
-		account      = fs.String("a", "", "account alias (overrides AGENT_STRIPE_ACCOUNT and config default)")
+		account      = fs.String("account", "", "account alias (overrides AGENT_STRIPE_ACCOUNT and config default)")
 		live         = fs.Bool("live", false, "allow operations against a live-mode account")
 		full         = fs.Bool("full", false, "skip string truncation in output")
 		expand       = fs.String("expand", "", "comma-separated fields/paths to skip truncation on; a token with a dot (e.g. lines.data.description) is matched as a path, bare names match any leaf")
@@ -237,12 +237,13 @@ func splitCSV(s string) []string {
 func printTopUsage(reg *Registry) {
 	var b strings.Builder
 	b.WriteString("agent-stripe — read-only Stripe CLI for AI agents\n\n")
-	b.WriteString("Usage:\n  agent-stripe [-a ALIAS] [--live] [--full] [--expand FIELDS] [--expand-stripe PATHS] [--stream] [--rate-limit N] [--timeout DUR] <command> [args]\n\n")
+	b.WriteString("Usage:\n  agent-stripe [--account ALIAS] [--live] [--full] [--expand FIELDS] [--expand-stripe PATHS] [--stream] [--rate-limit N] [--timeout DUR] <command> [args]\n\n")
+	b.WriteString("Flags are long-form only (no short aliases): use --account, not -a.\n\n")
 	b.WriteString("Commands:\n")
 	for name, spec := range reg.Commands {
 		first := strings.SplitN(spec.Usage, "\n", 2)[0]
 		fmt.Fprintf(&b, "  %-12s %s\n", name, first)
 	}
-	b.WriteString("\nUse `agent-stripe <command> usage` for command-specific help.\n")
+	b.WriteString("\nHelp: `agent-stripe <command> usage` (also: help, -h, --help) for command-specific help.\n")
 	fmt.Fprint(os.Stderr, b.String())
 }

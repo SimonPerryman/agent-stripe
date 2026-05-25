@@ -21,12 +21,14 @@ Subcommands:
 Resources: customer, charge, payment-intent, refund, dispute, balance,
            payout, event, subscription, invoice, product, price.
 
-This command does NOT hit Stripe — safe to run without -a / a configured
+This command does NOT hit Stripe — safe to run without --account or a configured
 account. The field tree is reflected from stripe-go's struct definitions, and
 the expandPaths output field is a hand-curated, machine-readable mirror of
 each resource's --expand-stripe recommendation. Use this when you want to
 know "what can I expand?" or "what fields exist on a subscription?" before
-spending an API call.`
+spending an API call.
+
+Help: usage | help | -h | --help`
 
 func Run(ctx context.Context, opts *cli.GlobalOpts, args []string) error {
 	if len(args) == 0 {

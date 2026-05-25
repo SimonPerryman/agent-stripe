@@ -44,7 +44,9 @@ Notes:
 Catalogs tend to be small. The default --limit is usually enough on its own.
 
 Recommended --expand-stripe paths:
-  default_price`
+  default_price
+
+Help: usage | help | -h | --help`
 
 func Run(ctx context.Context, opts *cli.GlobalOpts, args []string) error {
 	if len(args) == 0 {

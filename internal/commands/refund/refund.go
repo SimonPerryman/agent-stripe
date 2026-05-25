@@ -36,7 +36,9 @@ Refund creation is NOT exposed here. This CLI is read-only; use the Stripe
 dashboard or a dedicated tool with audit trail for refunds.
 
 Common --expand-stripe paths:
-  charge, payment_intent, balance_transaction`
+  charge, payment_intent, balance_transaction
+
+Help: usage | help | -h | --help`
 
 func Run(ctx context.Context, opts *cli.GlobalOpts, args []string) error {
 	if len(args) == 0 {

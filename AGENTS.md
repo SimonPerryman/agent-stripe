@@ -46,7 +46,9 @@ internal/
 └── usage/                   # LLM-friendly docs per command
 ```
 
-Account resolution order: `-a` flag > `AGENT_STRIPE_ACCOUNT` env > config default.
+Account resolution order: `--account` flag > `AGENT_STRIPE_ACCOUNT` env > config default.
+
+**Flags are long-form only.** Global and subcommand flags do not have single-letter short aliases (no `-a`, no `-e`). Long-form flags are self-documenting in transcripts, unambiguous for LLM-driven argv construction, and keep the single-letter namespace free. `usage`, `help`, `-h`, and `--help` all work at the top level and on every subcommand.
 
 ## Runtime & Tooling
 

@@ -36,7 +36,9 @@ Streaming: pass --stream (top-level) on transactions to emit NDJSON over pages
 until --limit or exhausted. get is a single snapshot — not streamable.
 
 Common --expand-stripe paths (transactions):
-  source — fetches the originating object (charge, refund, payout, …)`
+  source — fetches the originating object (charge, refund, payout, …)
+
+Help: usage | help | -h | --help`
 
 func Run(ctx context.Context, opts *cli.GlobalOpts, args []string) error {
 	if len(args) == 0 {

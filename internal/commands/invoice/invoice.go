@@ -48,7 +48,9 @@ Recommended --expand-stripe paths:
 Note: invoice preview (formerly upcoming) is not exposed in v1. The endpoint
 moved to POST /v1/invoices/create_preview in the pinned API version and the
 read-only chokepoint blocks POST; this is out of scope for v1 (read-only) and
-is v2 work.`
+is v2 work.
+
+Help: usage | help | -h | --help`
 
 func Run(ctx context.Context, opts *cli.GlobalOpts, args []string) error {
 	if len(args) == 0 {

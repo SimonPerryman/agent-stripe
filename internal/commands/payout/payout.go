@@ -31,7 +31,9 @@ Streaming: pass --stream (top-level) on list to emit NDJSON over pages until
 
 Cross-reference: a payout's id appears as automatic_transfer_id on related
 balance transactions, so to find what's *inside* a payout, query
-` + "`balance transactions --payout po_...`" + ` rather than expanding here.`
+` + "`balance transactions --payout po_...`" + ` rather than expanding here.
+
+Help: usage | help | -h | --help`
 
 func Run(ctx context.Context, opts *cli.GlobalOpts, args []string) error {
 	if len(args) == 0 {

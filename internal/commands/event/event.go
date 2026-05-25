@@ -42,7 +42,9 @@ Note: Stripe does not offer a Search API for events — use list with
 --type / --created-gt/lt / --related filters.
 
 Streaming: pass --stream (top-level) on list to emit NDJSON over pages until
---limit or exhausted. With --related, see the --related-specific behavior above.`
+--limit or exhausted. With --related, see the --related-specific behavior above.
+
+Help: usage | help | -h | --help`
 
 func Run(ctx context.Context, opts *cli.GlobalOpts, args []string) error {
 	if len(args) == 0 {

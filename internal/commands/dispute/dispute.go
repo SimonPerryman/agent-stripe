@@ -32,7 +32,9 @@ Streaming: pass --stream (top-level) on list to emit NDJSON over pages until
 --limit or exhausted.
 
 Recommended --expand-stripe paths:
-  charge, payment_intent, charge.balance_transaction`
+  charge, payment_intent, charge.balance_transaction
+
+Help: usage | help | -h | --help`
 
 func Run(ctx context.Context, opts *cli.GlobalOpts, args []string) error {
 	if len(args) == 0 {
