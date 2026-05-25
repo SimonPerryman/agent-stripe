@@ -117,7 +117,11 @@ Power features:
 
 ## Use with Claude Code
 
-Copy [`SKILL.md`](SKILL.md) into your project's `.claude/skills/` directory and Claude will reach for `agent-stripe` automatically on read-only Stripe questions.
+```sh
+npx skills add simonperryman/agent-stripe
+```
+
+Installs the [`SKILL.md`](SKILL.md) via [skills.sh](https://skills.sh) so Claude Code (and other supported agents) reach for `agent-stripe` automatically on read-only Stripe questions. Add `-g` for a global install instead of project-level.
 
 ## Reference
 
