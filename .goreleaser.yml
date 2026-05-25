@@ -64,6 +64,7 @@ brews:
     repository:
       owner: simonperryman
       name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
     homepage: "https://github.com/simonperryman/agent-stripe"
     description: "Read-only Stripe CLI for AI agents"
     license: "MIT"
