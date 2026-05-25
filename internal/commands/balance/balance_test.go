@@ -86,3 +86,80 @@ func keys(m map[string]any) []string {
 	}
 	return out
 }
+
+func TestBalanceTransactions_FiltersPassthrough(t *testing.T) {
+	var gotQuery string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotQuery = r.URL.RawQuery
+		if r.URL.Path != "/v1/balance_transactions" {
+			t.Errorf("unexpected path %q", r.URL.Path)
+		}
+		_, _ = io.WriteString(w, `{"object":"list","data":[],"has_more":false,"url":"/v1/balance_transactions"}`)
+	}))
+	defer srv.Close()
+
+	opts := &cli.GlobalOpts{
+		Account: &config.Account{Alias: "test", Mode: config.ModeTest},
+		Client:  agentstripe.NewClient("sk_test_fake", srv.URL, 5*time.Second),
+	}
+	old := os.Stdout
+	devnull, _ := os.OpenFile(os.DevNull, os.O_WRONLY, 0)
+	os.Stdout = devnull
+	defer func() { os.Stdout = old; _ = devnull.Close() }()
+
+	args := []string{
+		"--type", "charge",
+		"--payout", "po_1",
+		"--currency", "usd",
+		"--created-gt", "100",
+		"--created-lt", "200",
+		"--starting-after", "txn_x",
+		"--limit", "5",
+	}
+	if err := runTransactions(context.Background(), opts, args); err != nil {
+		t.Fatalf("runTransactions: %v", err)
+	}
+	for _, want := range []string{"type=charge", "payout=po_1", "currency=usd", "created[gt]=100", "created[lt]=200", "starting_after=txn_x", "limit=5"} {
+		if !contains(gotQuery, want) {
+			t.Errorf("expected %q in query, got %q", want, gotQuery)
+		}
+	}
+}
+
+func TestBalanceGet_RejectsArgs(t *testing.T) {
+	opts := &cli.GlobalOpts{
+		Account: &config.Account{Alias: "test", Mode: config.ModeTest},
+	}
+	if err := runGet(context.Background(), opts, []string{"extra"}); err == nil {
+		t.Fatal("expected error when args provided to balance get")
+	}
+}
+
+func TestBalanceRun_Dispatch(t *testing.T) {
+	opts := &cli.GlobalOpts{Account: &config.Account{Alias: "test", Mode: config.ModeTest}}
+	if err := Run(context.Background(), opts, nil); err != nil {
+		t.Errorf("empty args: %v", err)
+	}
+	if err := Run(context.Background(), opts, []string{"usage"}); err != nil {
+		t.Errorf("usage: %v", err)
+	}
+	if err := Run(context.Background(), opts, []string{"help"}); err != nil {
+		t.Errorf("help: %v", err)
+	}
+	if err := Run(context.Background(), opts, []string{"nope"}); err == nil {
+		t.Error("expected error for unknown subcommand")
+	}
+}
+
+func contains(haystack, needle string) bool {
+	return len(haystack) >= len(needle) && (haystack == needle || indexOf(haystack, needle) >= 0)
+}
+
+func indexOf(haystack, needle string) int {
+	for i := 0; i+len(needle) <= len(haystack); i++ {
+		if haystack[i:i+len(needle)] == needle {
+			return i
+		}
+	}
+	return -1
+}

@@ -31,7 +31,14 @@ func main() {
 	ctx, cancel := signalContext()
 	defer cancel()
 
-	reg := &cli.Registry{
+	cli.Dispatch(ctx, buildRegistry(), os.Args[1:])
+}
+
+// buildRegistry returns the registry of top-level commands wired into the
+// binary. Extracted from main so tests can assert the expected commands are
+// registered without invoking cli.Dispatch (which exits the process).
+func buildRegistry() *cli.Registry {
+	return &cli.Registry{
 		Commands: map[string]cli.CommandSpec{
 			"account":        {Run: account.Run, Usage: account.Usage},
 			"customer":       {Run: customer.Run, Usage: customer.Usage},
@@ -50,7 +57,6 @@ func main() {
 			"resource":       {Run: resource.Run, Usage: resource.Usage, NoAccount: true}, // pure reflection, no Stripe call
 		},
 	}
-	cli.Dispatch(ctx, reg, os.Args[1:])
 }
 
 // signalContext cancels on SIGINT/SIGTERM and emits an `{"error":"interrupted"}`
