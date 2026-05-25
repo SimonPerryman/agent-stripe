@@ -1,166 +1,131 @@
 # agent-stripe
 
-Read-only Stripe CLI for AI agents. Structured JSON output, multi-account, safe by default.
+Read-only Stripe CLI for AI agents. Structured JSON, multi-account, safe by default.
 
-Modeled on [agent-mongo](https://github.com/shhac/agent-mongo) and [agent-dd](https://github.com/shhac/agent-dd). See [PLAN.md](PLAN.md) and [TECH_STACK.md](TECH_STACK.md) for design details.
+Built on [stripe-go v85](https://github.com/stripe/stripe-go) · Go 1.26+ · macOS & Linux
 
-## Status
+## Why
 
-🚧 Pre-release. Phases 1–4 are implemented: scaffolding + `account`, `customer`, `event`, Payments, Billing, search across the resources Stripe supports, `--stream` NDJSON output, and `resource describe`. Packaging + Homebrew tap publish is the remaining open item. See [plans/v1/](plans/v1/).
+Agents need to *read* Stripe — debug a failed charge, reconcile an invoice, trace an event — without risk of writing. `agent-stripe` enforces read-only at the HTTP boundary (non-GET requests are rejected at the transport layer), redacts keys, and returns predictable JSON envelopes that an LLM can parse without prose-stripping.
 
-Legend: ✅ shipped · 🚧 in progress · ⏳ planned
+## Install
 
-## Features
-
-### Account management ✅
-Store API keys locally, switch between accounts, never echo secrets back to the agent.
-
-| Command | Status | Notes |
-|---|---|---|
-| `account add <alias> [--key] [--form] [--default]` | ✅ | `--form` opens an OS dialog (macOS only in v1) so the key never enters the agent transcript |
-| `account update <alias> [--key] [--form]` | ⏳ | |
-| `account remove <alias>` | ✅ | |
-| `account list` | ✅ | Keys redacted; shows `mode: test \| live` from key prefix |
-| `account test [alias]` | ✅ | `GET /v1/account` — verifies key works |
-| `account set-default <alias>` | ✅ | |
-
-### Customers ✅
-| `customer get <id>` ✅ · `customer list` ✅ · `customer search --query` ✅ |
-
-### Payments ✅
-| Resource | Commands | Status |
-|---|---|---|
-| `charge` | `get`, `list`, `search` | ✅ |
-| `payment-intent` | `get`, `list`, `search` | ✅ |
-| `refund` | `get`, `list` | ✅ |
-| `dispute` | `get`, `list` | ✅ |
-| `balance` | `get`, `transactions` | ✅ |
-| `payout` | `get`, `list` | ✅ |
-
-**Debugging a failed charge** — typical agent flow:
+**Homebrew** (macOS / Linux):
 
 ```sh
-agent-stripe event list --related ch_xxx          # what happened, in order
-agent-stripe charge get ch_xxx --full             # outcome.seller_message + failure_message
-agent-stripe balance transactions --type charge   # fees / settlement once it lands
+brew install simonperryman/tap/agent-stripe
 ```
 
-**`--expand-stripe`** — Stripe's `expand[]` passthrough. Useful when one resource references another and you'd otherwise need a second round-trip:
+**From source** (Go 1.26+):
 
 ```sh
-agent-stripe payment-intent get pi_xxx --expand-stripe latest_charge,customer
-agent-stripe charge get ch_xxx --expand-stripe customer,balance_transaction
+go install github.com/simonperryman/agent-stripe/cmd/agent-stripe@latest
 ```
 
-Paths aren't validated — typos return the un-expanded shape silently. See each command's `usage` for the recommended set.
-
-### Billing ✅
-| Resource | Commands | Status |
-|---|---|---|
-| `subscription` | `get`, `list`, `search` | ✅ |
-| `invoice` | `get`, `list`, `search` | ✅ |
-| `product` | `get`, `list`, `search` | ✅ |
-| `price` | `get`, `list`, `search` | ✅ |
-
-**Search vs list** — `list` is filter-on-fields with strict consistency; `search` is Stripe's [search query language](https://docs.stripe.com/search#search-query-language) with eventual consistency (~1 min lag) and an opaque `--page` token (not interchangeable with `list`'s `--starting-after`):
+**First-time setup** — add a Stripe key:
 
 ```sh
-agent-stripe charge search --query 'amount>5000 AND status:"succeeded"' --limit 20
-agent-stripe customer search --query 'email:"alice@example.com"'
+agent-stripe account add default --form --default
 ```
 
-Reconciling a customer complaint:
+`--form` opens an OS dialog so the secret never enters the agent's transcript. Keys live in the OS keychain.
 
+## Use with Claude Code
+
+Install the skill so Claude reaches for `agent-stripe` automatically on read-only Stripe questions:
+
+```sh
+npx skills add simonperryman/agent-stripe   # planned
 ```
+
+Or copy [`SKILL.md`](SKILL.md) into your project's `.claude/skills/` directory.
+
+## Examples
+
+**Debug a failed charge** — what happened, why, and the settlement once it lands:
+
+```sh
+# timeline of events for this charge
+agent-stripe event list --related ch_xxx
+
+# outcome.seller_message + failure_message
+agent-stripe charge get ch_xxx --full
+
+# fees / settlement once available
+agent-stripe balance transactions --type charge
+```
+
+**Reconcile a customer complaint** — trace customer → subscription → invoice → charge:
+
+```sh
 agent-stripe customer get cus_xxx
 agent-stripe subscription list --customer cus_xxx
 agent-stripe invoice list --subscription sub_xxx --status paid
 agent-stripe invoice get in_xxx --expand-stripe charge
 ```
 
-`invoice preview` (formerly `upcoming`) is deferred — see plans/v1/03-billing.md §2.
-
-### Events 🚧
-| `event list [--type] [--created-gt] [--created-lt] [--related <id>]` ✅ · `event get <id>` ⏳ |
-
-`--related <id>` is the agent's core debugging tool: client-side filter over recent events
-matching `data.object.id`. Response includes a `scan` envelope (`scanned`, `matched`, `truncated`).
-
-The core debugging tool — lets an agent reconstruct what happened to an object over time.
-
-### Config ⏳
-| `config get/set/reset/list-keys` | ⏳ |
-
-### Discoverability ✅
-- `agent-stripe usage` — top-level LLM-optimized docs
-- `<command> usage` — per-command docs with examples
-- `resource describe <name> [--depth N]` — emits the field/type tree (reflected from `stripe-go`) plus the curated `expandPaths` list. **No API call.** Useful for "what can I expand on a subscription?" or "what fields exist on a charge?" without spending a request.
-
-### Output ✅
-- JSON to stdout; errors as `{ "error": "...", "fixableBy": "human" | "retry" | "agent" }` to stderr
-- Long strings truncated with `{field}Length` companion; `--full` skips truncation entirely, or `--expand <leaf|dotted.path>` opts out per-field
-- `--expand-stripe <fields>` — passthrough to Stripe's `expand[]` for nested resources
-- `--stream` — NDJSON for large lists/searches; one header line then one record per line, paginates Stripe until exhausted or `--limit` hit
-- Every response tagged with `mode: test | live`
-
-**Streaming** — `--stream` works with both `list` and `search`. Pipes cleanly to `head`, redirects to a file, and exits 0 on broken pipe:
+**Bulk export** — stream every charge since a timestamp, then process with `jq`:
 
 ```sh
-agent-stripe charge list --created-gt 1735689600 --stream | head -5
-agent-stripe invoice list --stream > invoices.ndjson
-agent-stripe customer search --query 'created>1735689600' --stream | jq -r '.id'
+agent-stripe charge list --created-gt 1735689600 --stream > charges.ndjson
+jq -r 'select(.status == "failed") | .id' charges.ndjson
 ```
 
-Under `--stream`, `--limit` becomes a hard stop (default is unbounded — paginate everything); `--starting-after` (list) and `--page` (search) act as resume points.
-
-### Safety ⏳
-- **Read-only at the HTTP boundary** — no `POST`/`DELETE` paths importable from the Stripe client wrapper
-- **Live-mode gating** — calls against `sk_live_` accounts require `--live` flag (or disable via `account.requireLiveFlag` config)
-- **Bounded results** — `list.maxResults` default 100; use `--stream` to go further
-- **Redaction** — keys never appear in `list`, errors, or logs
-
-## Non-goals (v1)
-
-- Write operations (charges, refunds, customer mutations, subscription edits) — explicit out-of-scope
-- Webhook receiving / event tunneling (the official Stripe CLI covers this well)
-- Card testing / payment simulation
-- Connect onboarding flows
-
-Phase 5 may add scoped writes (refunds, subscription cancel) behind `--confirm` if there's real demand.
-
-## Tests
-
-Unit tests run with `make test` and mock Stripe at the HTTP layer (no network).
-
-Integration tests hit Stripe **test mode** with a dedicated key. Grab a test key from the [Stripe dashboard](https://dashboard.stripe.com/test/apikeys) (the one prefixed `sk_test_…`), then:
+**Discover fields without an API call** — handy before writing an `--expand-stripe`:
 
 ```sh
-export STRIPE_TEST_KEY=sk_test_...
-make integration
+agent-stripe resource describe subscription --depth 2
 ```
 
-Without `STRIPE_TEST_KEY` set, the suite skips cleanly.
-
-## Install
-
-Homebrew (once the tap is published — release config in `.goreleaser.yml`):
+**Test vs live mode** — Stripe sandboxes are test mode (`sk_test_…` keys). Live mode requires an explicit flag so an agent can't accidentally hit production:
 
 ```sh
-brew install simonperryman/tap/agent-stripe
+agent-stripe account add sandbox --form           # sk_test_… → mode: test, no flag needed
+agent-stripe account add prod --form              # sk_live_… → mode: live, requires --live
+agent-stripe -a prod --live charge list
 ```
 
-From source:
+Every response carries `"mode": "test" | "live"` so an agent can verify which environment it's reading.
+
+**Errors** — go to stderr as a structured envelope. `fixableBy` tells an agent whether to retry, ask the human, or correct its own input:
 
 ```sh
-go install github.com/simonperryman/agent-stripe/cmd/agent-stripe@latest
+$ agent-stripe charge get ch_doesnotexist
+{"error":"No such charge: 'ch_doesnotexist'","fixableBy":"agent","stripeCode":"resource_missing","httpStatus":404,"requestId":"req_..."}
 ```
 
-Claude Code skill: see [SKILL.md](SKILL.md) at the repo root. Distribution via `npx skills add simonperryman/agent-stripe` is planned.
+## Features
 
-First-time setup (regardless of install method):
+- **Accounts** — `account add | list | test | set-default | remove`. Keys stored in OS keychain, redacted in all output.
+- **Resources** — `customer`, `charge`, `payment-intent`, `refund`, `dispute`, `balance`, `payout`, `subscription`, `invoice`, `product`, `price`, `event`. Each supports `get` / `list`, plus `search` where Stripe does.
+- **Events with `--related <id>`** — reconstruct what happened to any object over time. The core agent debugging primitive.
+- **`--expand-stripe`** — passthrough to Stripe's `expand[]` for nested resources in one round-trip.
+- **`--stream`** — NDJSON for large lists/searches; paginates Stripe until exhausted. Pipes cleanly to `head`, `jq`, files.
+- **`resource describe <name>`** — emits field/type tree (reflected from `stripe-go`) without an API call. Answers "what can I expand on a subscription?".
+- **Discoverability** — `agent-stripe usage` and `<command> usage` for LLM-optimized docs.
+
+### Safety guarantees
+
+- Read-only at the HTTP boundary — no `POST`/`DELETE` paths importable from the client wrapper
+- Live-mode calls require `--live` flag (configurable via `account.requireLiveFlag`)
+- Long strings truncated by default with `{field}Length` companion; opt out per-field with `--expand`, or globally with `--full`
+- Bounded results (`list.maxResults`, default 100); `--stream` to go further
+
+### Not included (by design)
+
+Writes (charges, refunds, mutations), webhook tunneling, card testing, Connect onboarding. Use the [official Stripe CLI](https://github.com/stripe/stripe-cli) for those.
+
+## Configuration
+
+State lives in `~/.config/agent-stripe/` (or `$XDG_CONFIG_HOME`). Secrets in the OS keychain only.
+
+## Development
 
 ```sh
-agent-stripe account add default --form --default
+make test                              # unit tests, no network
+STRIPE_TEST_KEY=sk_test_... make integration   # hits Stripe test mode
 ```
 
-`--form` opens an OS dialog so the secret key never enters the agent transcript. The key is stored in the OS keychain (macOS Keychain in v1).
+## License
+
+MIT
