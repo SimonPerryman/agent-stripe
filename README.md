@@ -30,16 +30,6 @@ agent-stripe account add default --form --default
 
 `--form` opens an OS dialog so the secret never enters the agent's transcript. Keys live in the OS keychain.
 
-## Use with Claude Code
-
-Install the skill so Claude reaches for `agent-stripe` automatically on read-only Stripe questions:
-
-```sh
-npx skills add simonperryman/agent-stripe   # planned
-```
-
-Or copy [`SKILL.md`](SKILL.md) into your project's `.claude/skills/` directory.
-
 ## Examples
 
 **Debug a failed charge** — what happened, why, and the settlement once it lands:
@@ -114,6 +104,16 @@ $ agent-stripe charge get ch_doesnotexist
 ### Not included (by design)
 
 Writes (charges, refunds, mutations), webhook tunneling, card testing, Connect onboarding. Use the [official Stripe CLI](https://github.com/stripe/stripe-cli) for those.
+
+## Use with Claude Code
+
+Install the skill so Claude reaches for `agent-stripe` automatically on read-only Stripe questions:
+
+```sh
+npx skills add simonperryman/agent-stripe   # planned
+```
+
+Or copy [`SKILL.md`](SKILL.md) into your project's `.claude/skills/` directory.
 
 ## Configuration
 
