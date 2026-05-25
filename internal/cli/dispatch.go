@@ -96,6 +96,14 @@ func Dispatch(ctx context.Context, reg *Registry, argv []string) {
 		output.Fail(fmt.Sprintf("unknown command %q (try `agent-stripe usage`)", cmd), output.FixableByAgent, 2)
 	}
 
+	// Centralize per-command help so all four forms (usage|help|-h|--help)
+	// work uniformly without each command package handling -h/--help. This
+	// also guarantees help is always reachable without credentials.
+	if len(rest) > 1 && isHelpToken(rest[1]) {
+		fmt.Fprintln(os.Stderr, spec.Usage)
+		os.Exit(0)
+	}
+
 	leaves, paths := splitExpand(*expand)
 	opts := &GlobalOpts{
 		AccountAlias: resolveAccountAlias(*account),
@@ -150,6 +158,14 @@ func parseUntilSubcommand(fs *flag.FlagSet, argv []string) error {
 	return fs.Parse(ReorderFlagsFirst(argv, fs))
 }
 
+func isHelpToken(s string) bool {
+	switch s {
+	case "usage", "help", "-h", "--help":
+		return true
+	}
+	return false
+}
+
 func resolveAccountAlias(flagVal string) string {
 	if flagVal != "" {
 		return flagVal
@@ -166,6 +182,12 @@ func resolveAccountAlias(flagVal string) string {
 func needsAccount(spec CommandSpec, cmd string, rest []string) bool {
 	if spec.NoAccount {
 		// The top-level command opts out entirely.
+		return false
+	}
+	// Per-command help is always reachable without credentials so an agent
+	// encountering the tool fresh can discover the surface area before being
+	// asked to configure a Stripe account.
+	if len(rest) > 0 && isHelpToken(rest[0]) {
 		return false
 	}
 	if cmd == "account" {
