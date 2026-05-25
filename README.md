@@ -165,4 +165,5 @@ Writes (charges, refunds, mutations), webhook tunneling, card testing, Connect o
 
 ## License
 
-MIT
+MIT.
+
