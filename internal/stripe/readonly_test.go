@@ -30,7 +30,10 @@ func TestReadOnlyTransportRejectsWrites(t *testing.T) {
 	c := &http.Client{Transport: NewReadOnlyTransport(nil)}
 	for _, method := range []string{"POST", "PUT", "DELETE", "PATCH"} {
 		req, _ := http.NewRequest(method, srv.URL, strings.NewReader(""))
-		_, err := c.Do(req)
+		resp, err := c.Do(req)
+		if resp != nil {
+			_ = resp.Body.Close()
+		}
 		if !errors.Is(err, ErrReadOnly) {
 			// http.Client wraps errors; check via the wrapper.
 			if err == nil || !strings.Contains(err.Error(), ErrReadOnly.Error()) {

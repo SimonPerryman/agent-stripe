@@ -2,12 +2,13 @@ package charge
 
 import (
 	"context"
-	"github.com/simonperryman/agent-stripe/internal/testutil"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/simonperryman/agent-stripe/internal/testutil"
 )
 
 func TestChargeList_CustomerFilterPassthrough(t *testing.T) {

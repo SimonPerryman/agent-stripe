@@ -3,13 +3,14 @@ package invoice
 import (
 	"context"
 	"encoding/json"
-	"github.com/simonperryman/agent-stripe/internal/testutil"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/simonperryman/agent-stripe/internal/testutil"
 )
 
 func TestInvoiceList_StatusAndSubscriptionPassthrough(t *testing.T) {

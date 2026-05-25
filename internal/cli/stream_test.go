@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"io"
 	"net/http"
@@ -151,12 +152,9 @@ func twoPageCustomerServer() (*httptest.Server, *int32) {
 			_, _ = io.WriteString(w, page1)
 			return
 		}
-		// Page 2 — Stripe iterator should have set starting_after to last id
-		// on page 1 (cus_3).
-		if !strings.Contains(r.URL.RawQuery, "starting_after=cus_3") {
-			// Don't fail the request — just emit nothing. The test asserts
-			// request count, which surfaces the mistake more clearly.
-		}
+		// Page 2 — Stripe iterator should set starting_after=cus_3 from page 1.
+		// We don't fail the request here; the test asserts request count, which
+		// surfaces the mistake more clearly.
 		_, _ = io.WriteString(w, page2)
 	}))
 	return srv, &requests
@@ -235,7 +233,7 @@ func TestPacer(t *testing.T) {
 	t.Run("forwards errors from inner", func(t *testing.T) {
 		want := io.EOF
 		p := newPacer(0)
-		if got := p.emit(nil, func(map[string]any) error { return want }); got != want {
+		if got := p.emit(nil, func(map[string]any) error { return want }); !errors.Is(got, want) {
 			t.Errorf("expected inner error to propagate, got %v", got)
 		}
 	})
