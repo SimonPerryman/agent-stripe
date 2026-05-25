@@ -10,6 +10,9 @@ import (
 // DefaultMaxResults is the cap on items returned by a bounded `list`.
 const DefaultMaxResults = 100
 
+// MaxPageSize is Stripe's per-request maximum for `limit` on list endpoints.
+const MaxPageSize = 100
+
 // CollectRawList drains a V1List iterator up to maxResults, returning each
 // item as a decoded map. hasMore is true if more pages remain after the cap.
 // nextCursor is the id of the last collected item (Stripe's cursor convention).

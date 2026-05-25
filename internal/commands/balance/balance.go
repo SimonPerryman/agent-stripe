@@ -89,7 +89,7 @@ func runTransactions(ctx context.Context, opts *cli.GlobalOpts, args []string) e
 	}
 
 	params := &stripeapi.BalanceTransactionListParams{}
-	params.Limit = stripeapi.Int64(int64(min(*limit, 100)))
+	params.Limit = stripeapi.Int64(int64(min(*limit, agentstripe.MaxPageSize)))
 	params.Expand = agentstripe.ExpandSlice(opts.ExpandStripe)
 	if *typ != "" {
 		params.Type = stripeapi.String(*typ)
@@ -115,7 +115,7 @@ func runTransactions(ctx context.Context, opts *cli.GlobalOpts, args []string) e
 	}
 
 	if opts.Stream {
-		params.Limit = stripeapi.Int64(100)
+		params.Limit = stripeapi.Int64(agentstripe.MaxPageSize)
 	}
 	return cli.RunListOrStream(ctx, opts, opts.Client.V1BalanceTransactions.List(ctx, params), *limit, cli.LimitExplicit(fs))
 }

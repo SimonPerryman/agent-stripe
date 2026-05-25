@@ -91,7 +91,7 @@ func runList(ctx context.Context, opts *cli.GlobalOpts, args []string) error {
 	}
 
 	params := &stripeapi.RefundListParams{}
-	params.Limit = stripeapi.Int64(int64(min(*limit, 100)))
+	params.Limit = stripeapi.Int64(int64(min(*limit, agentstripe.MaxPageSize)))
 	params.Expand = agentstripe.ExpandSlice(opts.ExpandStripe)
 	if *charge != "" {
 		params.Charge = stripeapi.String(*charge)
@@ -114,7 +114,7 @@ func runList(ctx context.Context, opts *cli.GlobalOpts, args []string) error {
 	}
 
 	if opts.Stream {
-		params.Limit = stripeapi.Int64(100)
+		params.Limit = stripeapi.Int64(agentstripe.MaxPageSize)
 	}
 	return cli.RunListOrStream(ctx, opts, opts.Client.V1Refunds.List(ctx, params), *limit, cli.LimitExplicit(fs))
 }

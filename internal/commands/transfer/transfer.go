@@ -105,7 +105,7 @@ func runList(ctx context.Context, opts *cli.GlobalOpts, args []string) error {
 	}
 
 	params := &stripeapi.TransferListParams{}
-	params.Limit = stripeapi.Int64(int64(min(*limit, 100)))
+	params.Limit = stripeapi.Int64(int64(min(*limit, agentstripe.MaxPageSize)))
 	params.Expand = agentstripe.ExpandSlice(opts.ExpandStripe)
 	if *transferGroup != "" {
 		params.TransferGroup = stripeapi.String(*transferGroup)
@@ -128,7 +128,7 @@ func runList(ctx context.Context, opts *cli.GlobalOpts, args []string) error {
 	}
 
 	if opts.Stream {
-		params.Limit = stripeapi.Int64(100)
+		params.Limit = stripeapi.Int64(agentstripe.MaxPageSize)
 	}
 	return cli.RunListOrStream(ctx, opts, opts.Client.V1Transfers.List(ctx, params), *limit, cli.LimitExplicit(fs))
 }
@@ -157,14 +157,14 @@ func runReversals(ctx context.Context, opts *cli.GlobalOpts, args []string) erro
 	}
 
 	params := &stripeapi.TransferReversalListParams{ID: stripeapi.String(transferID)}
-	params.Limit = stripeapi.Int64(int64(min(*limit, 100)))
+	params.Limit = stripeapi.Int64(int64(min(*limit, agentstripe.MaxPageSize)))
 	params.Expand = agentstripe.ExpandSlice(opts.ExpandStripe)
 	if *startingAfter != "" {
 		params.StartingAfter = stripeapi.String(*startingAfter)
 	}
 
 	if opts.Stream {
-		params.Limit = stripeapi.Int64(100)
+		params.Limit = stripeapi.Int64(agentstripe.MaxPageSize)
 	}
 	return cli.RunListOrStream(ctx, opts, opts.Client.V1TransferReversals.List(ctx, params), *limit, cli.LimitExplicit(fs))
 }

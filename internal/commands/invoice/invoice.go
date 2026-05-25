@@ -103,7 +103,7 @@ func runList(ctx context.Context, opts *cli.GlobalOpts, args []string) error {
 	}
 
 	params := &stripeapi.InvoiceListParams{}
-	params.Limit = stripeapi.Int64(int64(min(*limit, 100)))
+	params.Limit = stripeapi.Int64(int64(min(*limit, agentstripe.MaxPageSize)))
 	params.Expand = agentstripe.ExpandSlice(opts.ExpandStripe)
 	if *customer != "" {
 		params.Customer = stripeapi.String(*customer)
@@ -129,7 +129,7 @@ func runList(ctx context.Context, opts *cli.GlobalOpts, args []string) error {
 	}
 
 	if opts.Stream {
-		params.Limit = stripeapi.Int64(100)
+		params.Limit = stripeapi.Int64(agentstripe.MaxPageSize)
 	}
 	return cli.RunListOrStream(ctx, opts, opts.Client.V1Invoices.List(ctx, params), *limit, cli.LimitExplicit(fs))
 }
@@ -141,13 +141,13 @@ func runSearch(ctx context.Context, opts *cli.GlobalOpts, args []string) error {
 	}
 	params := &stripeapi.InvoiceSearchParams{}
 	params.Query = sf.Query
-	params.Limit = stripeapi.Int64(int64(min(sf.Limit, 100)))
+	params.Limit = stripeapi.Int64(int64(min(sf.Limit, agentstripe.MaxPageSize)))
 	if sf.Page != "" {
 		params.Page = stripeapi.String(sf.Page)
 	}
 	params.Expand = agentstripe.ExpandSlice(opts.ExpandStripe)
 	if opts.Stream {
-		params.Limit = stripeapi.Int64(100)
+		params.Limit = stripeapi.Int64(agentstripe.MaxPageSize)
 	}
 	return cli.RunSearchOrStream(ctx, opts, opts.Client.V1Invoices.Search(ctx, params), sf.Limit, sf.LimitExplicit)
 }
