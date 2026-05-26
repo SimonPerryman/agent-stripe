@@ -5,7 +5,39 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/simonperryman/agent-stripe/internal/config"
 )
+
+func TestAliasHint(t *testing.T) {
+	accounts := map[string]config.Account{
+		"prod":    {Alias: "prod"},
+		"staging": {Alias: "staging"},
+		"dev":     {Alias: "dev"},
+	}
+	// Close match → "did you mean ..." phrasing.
+	if h := AliasHint("prd", accounts); !strings.Contains(h, `"prod"`) {
+		t.Errorf("expected close-match hint for typo, got %q", h)
+	}
+	// Totally different alias → fallback list.
+	if h := AliasHint("zzz", accounts); !strings.HasPrefix(h, "valid: ") {
+		t.Errorf("expected valid-list fallback, got %q", h)
+	}
+	// Empty config → onboarding hint.
+	if h := AliasHint("anything", nil); !strings.Contains(h, "account add") {
+		t.Errorf("expected onboarding hint, got %q", h)
+	}
+}
+
+func TestSubcommandHint(t *testing.T) {
+	valid := []string{"get", "list", "search"}
+	if h := SubcommandHint("lst", valid); !strings.Contains(h, `"list"`) {
+		t.Errorf("expected close-match hint, got %q", h)
+	}
+	if h := SubcommandHint("totallydifferent", valid); h != "valid: get, list, search" {
+		t.Errorf("expected valid-list fallback, got %q", h)
+	}
+}
 
 // newGlobalsFlagSet mirrors the FlagSet registered in Dispatch. Kept in sync
 // with dispatch.go so tests can exercise global-flag parsing without invoking

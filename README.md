@@ -147,10 +147,13 @@ $ agent-stripe charge get ch_doesnotexist
 | Field | Purpose |
 |---|---|
 | `fixableBy` | `agent` (retry/correct input), `human` (ask the user), or `none` |
+| `hint` | Closest-match suggestion when the failing value is from a closed set (command name, subcommand, account alias, resource type). Example: `did you mean "charge"?` |
 | `stripeCode` | Stripe's machine-readable error code |
 | `httpStatus` | HTTP status from Stripe |
 | `requestId` | For grepping Stripe Dashboard logs |
 | `error` | Human-readable message (last resort) |
+
+Envelope shape: `{error, fixableBy, hint?, stripeCode?, httpStatus?, requestId?}`.
 
 ### Configuration
 

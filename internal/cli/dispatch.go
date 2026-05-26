@@ -93,7 +93,12 @@ func Dispatch(ctx context.Context, reg *Registry, argv []string) {
 
 	spec, ok := reg.Commands[cmd]
 	if !ok {
-		output.Fail(fmt.Sprintf("unknown command %q (try `agent-stripe usage`)", cmd), output.FixableByAgent, 2)
+		output.FailWithHint(
+			fmt.Sprintf("unknown command %q (try `agent-stripe usage`)", cmd),
+			topLevelHint(reg, cmd),
+			output.FixableByAgent,
+			2,
+		)
 	}
 
 	// Centralize per-command help so all four forms (usage|help|-h|--help)
@@ -122,13 +127,13 @@ func Dispatch(ctx context.Context, reg *Registry, argv []string) {
 	// so they can bootstrap the first alias.
 	if !needsAccount(spec, cmd, rest[1:]) {
 		if err := spec.Run(ctx, opts, rest[1:]); err != nil {
-			output.Fail(err.Error(), output.FixableByAgent, 1)
+			failFromCommand(err, output.FixableByAgent, 1)
 		}
 		os.Exit(0)
 	}
 
 	if err := resolveAccount(opts); err != nil {
-		output.Fail(err.Error(), output.FixableByHuman, 2)
+		failFromCommand(err, output.FixableByHuman, 2)
 	}
 	if opts.Account.Mode == config.ModeLive && !opts.Live && !liveOverridden(opts.Account) {
 		output.Fail(
@@ -145,8 +150,52 @@ func Dispatch(ctx context.Context, reg *Registry, argv []string) {
 	opts.Client = agentstripe.NewClient(secret, "", opts.Timeout)
 
 	if err := spec.Run(ctx, opts, rest[1:]); err != nil {
+		var oe *output.Error
+		if errors.As(err, &oe) {
+			by := oe.By
+			if by == "" {
+				by = output.FixableByAgent
+			}
+			output.FailWithHint(oe.Msg, oe.Hint, by, 1)
+		}
 		output.FailFromStripeError(err, output.FixableByAgent, 1)
 	}
+}
+
+// failFromCommand routes a command-returned error: a *output.Error sentinel
+// becomes a hinted envelope; otherwise it falls through to plain Fail.
+func failFromCommand(err error, defaultBy output.FixableBy, code int) {
+	var oe *output.Error
+	if errors.As(err, &oe) {
+		by := oe.By
+		if by == "" {
+			by = defaultBy
+		}
+		output.FailWithHint(oe.Msg, oe.Hint, by, code)
+	}
+	output.Fail(err.Error(), defaultBy, code)
+}
+
+// SubcommandHint returns "did you mean X?" if there's a near match in valid,
+// otherwise "valid: a, b, c". Subcommand sets are small (2–4 entries) so the
+// fallback list fits comfortably on one line.
+func SubcommandHint(input string, valid []string) string {
+	if match := output.Closest(input, valid); match != "" {
+		return fmt.Sprintf("did you mean %q?", match)
+	}
+	return output.ValidList(valid)
+}
+
+// topLevelHint suggests the closest command name from the registry.
+func topLevelHint(reg *Registry, cmd string) string {
+	names := make([]string, 0, len(reg.Commands))
+	for name := range reg.Commands {
+		names = append(names, name)
+	}
+	if match := output.Closest(cmd, names); match != "" {
+		return fmt.Sprintf("did you mean %q? run `agent-stripe usage` for the full list", match)
+	}
+	return ""
 }
 
 // parseUntilSubcommand pulls recognized global flags to the front of argv so
@@ -217,11 +266,31 @@ func resolveAccount(opts *GlobalOpts) error {
 	}
 	acc, ok := cfg.Accounts[alias]
 	if !ok {
-		return fmt.Errorf("account %q not found (try `agent-stripe account list`)", alias)
+		return &output.Error{
+			Msg:  fmt.Sprintf("account %q not found (try `agent-stripe account list`)", alias),
+			Hint: AliasHint(alias, cfg.Accounts),
+			By:   output.FixableByHuman,
+		}
 	}
 	opts.AccountAlias = alias
 	opts.Account = &acc
 	return nil
+}
+
+// AliasHint suggests the closest known alias, or falls back to a short list.
+// Exported so account-subcommand handlers can reuse the same phrasing.
+func AliasHint(alias string, accounts map[string]config.Account) string {
+	names := make([]string, 0, len(accounts))
+	for k := range accounts {
+		names = append(names, k)
+	}
+	if match := output.Closest(alias, names); match != "" {
+		return fmt.Sprintf("did you mean %q? run `agent-stripe account list` for all accounts", match)
+	}
+	if len(names) == 0 {
+		return "no accounts configured — run `agent-stripe account add <alias>` to add one"
+	}
+	return output.ValidList(names) + " (or run `agent-stripe account list`)"
 }
 
 func liveOverridden(acc *config.Account) bool {

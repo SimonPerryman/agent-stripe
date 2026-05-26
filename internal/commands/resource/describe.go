@@ -96,7 +96,18 @@ func runDescribe(_ context.Context, opts *cli.GlobalOpts, args []string) error {
 	name := fs.Arg(0)
 	z, ok := resourceRegistry[name]
 	if !ok {
-		return fmt.Errorf("unknown resource %q (try one of: %s)", name, strings.Join(knownResources(), ", "))
+		known := knownResources()
+		hint := ""
+		if match := output.Closest(name, known); match != "" {
+			hint = fmt.Sprintf("did you mean %q?", match)
+		} else {
+			hint = output.ValidList(known)
+		}
+		return &output.Error{
+			Msg:  fmt.Sprintf("unknown resource %q (try one of: %s)", name, strings.Join(known, ", ")),
+			Hint: hint,
+			By:   output.FixableByAgent,
+		}
 	}
 	tree := walkType(reflect.TypeOf(z), *depth, 0)
 	data := map[string]any{

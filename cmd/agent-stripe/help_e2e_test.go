@@ -2,12 +2,52 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
 )
+
+// TestErrorHintsReachStderr exercises the dispatch path end-to-end for the
+// three hint categories reachable without a configured account: top-level
+// command, NoAccount subcommand, and the resource registry. Account-alias
+// hints are unit-tested separately (they need a config file).
+func TestErrorHintsReachStderr(t *testing.T) {
+	bin := buildBinary(t)
+	cases := []struct {
+		name     string
+		args     []string
+		wantHint string // substring expected in the hint field
+	}{
+		{"top-level typo", []string{"chage"}, `"charge"`},
+		{"resource subcommand typo", []string{"resource", "desribe"}, `"describe"`},
+		{"resource type typo", []string{"resource", "describe", "charg"}, `"charge"`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			c := exec.Command(bin, tc.args...)
+			c.Env = append([]string{}, "HOME="+t.TempDir(), "PATH=/usr/bin:/bin")
+			var stderr bytes.Buffer
+			c.Stderr = &stderr
+			_ = c.Run() // expected non-zero exit
+			var env struct {
+				Error string `json:"error"`
+				Hint  string `json:"hint"`
+			}
+			if err := json.Unmarshal(stderr.Bytes(), &env); err != nil {
+				t.Fatalf("stderr not JSON: %q\nerr: %v", stderr.String(), err)
+			}
+			if env.Hint == "" {
+				t.Fatalf("expected hint in envelope, got: %s", stderr.String())
+			}
+			if !strings.Contains(env.Hint, tc.wantHint) {
+				t.Errorf("hint = %q, want substring %q", env.Hint, tc.wantHint)
+			}
+		})
+	}
+}
 
 // Every registered command must expose `usage`, `help`, `-h`, and `--help`
 // without requiring a configured Stripe account. An agent encountering the
