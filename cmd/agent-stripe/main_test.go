@@ -9,9 +9,11 @@ import "testing"
 func TestRegistryWiring(t *testing.T) {
 	reg := buildRegistry()
 	want := []string{
-		"account", "balance", "charge", "customer", "dispute", "event",
-		"invoice", "payment-intent", "payout", "price", "product",
-		"refund", "resource", "subscription", "transfer",
+		"account", "balance", "charge", "checkout-session", "customer",
+		"dispute", "event", "invoice", "invoice-item", "payment-intent",
+		"payment-method", "payout", "price", "product", "refund", "resource",
+		"setup-intent", "subscription", "subscription-item",
+		"subscription-schedule", "transfer", "webhook-endpoint",
 	}
 	if len(reg.Commands) != len(want) {
 		t.Errorf("expected %d commands, got %d", len(want), len(reg.Commands))

@@ -23,6 +23,9 @@ Subcommands:
   list [--customer C] [--subscription SUB] [--status S]
        [--created-gt T] [--created-lt T]
        [--limit N] [--starting-after IN]    List invoices (cursor-paginated)
+  lines <invoice_id>
+       [--limit N] [--starting-after IL]    List finalized line items on one
+                                            invoice (cursor-paginated)
   search --query <q> [--limit N] [--page T] Stripe Search (eventual consistency
                                             ~1 min lag; --page is the opaque
                                             next_page token, NOT an in_ id)
@@ -46,6 +49,9 @@ arbitrarily long — pass --full if descriptions look cut.
 Recommended --expand-stripe paths:
   customer, subscription, payment_intent, charge, lines.data.price.product
 
+For 'invoice lines', the most useful --expand-stripe is data.price.product —
+"what did this customer actually pay for".
+
 Note: invoice preview (formerly upcoming) is not exposed in v1. The endpoint
 moved to POST /v1/invoices/create_preview in the pinned API version and the
 read-only chokepoint blocks POST; this is out of scope for v1 (read-only) and
@@ -63,6 +69,8 @@ func Run(ctx context.Context, opts *cli.GlobalOpts, args []string) error {
 		return runGet(ctx, opts, args[1:])
 	case "list":
 		return runList(ctx, opts, args[1:])
+	case "lines":
+		return runLines(ctx, opts, args[1:])
 	case "search":
 		return runSearch(ctx, opts, args[1:])
 	case "usage", "help":
@@ -137,6 +145,31 @@ func runList(ctx context.Context, opts *cli.GlobalOpts, args []string) error {
 		params.Limit = stripeapi.Int64(agentstripe.MaxPageSize)
 	}
 	return cli.RunListOrStream(ctx, opts, opts.Client.V1Invoices.List(ctx, params), *limit, cli.LimitExplicit(fs))
+}
+
+func runLines(ctx context.Context, opts *cli.GlobalOpts, args []string) error {
+	if len(args) == 0 {
+		return errors.New("usage: invoice lines <invoice_id> [--limit N] [--starting-after IL]")
+	}
+	invoiceID := args[0]
+	fs := flag.NewFlagSet("invoice lines", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	limit := fs.Int("limit", agentstripe.DefaultMaxResults, "max items to return (cap)")
+	startingAfter := fs.String("starting-after", "", "cursor: il_... id from previous page")
+	if err := fs.Parse(args[1:]); err != nil {
+		return err
+	}
+
+	params := &stripeapi.InvoiceListLinesParams{Invoice: stripeapi.String(invoiceID)}
+	params.Limit = stripeapi.Int64(int64(min(*limit, agentstripe.MaxPageSize)))
+	params.Expand = agentstripe.ExpandSlice(opts.ExpandStripe)
+	if *startingAfter != "" {
+		params.StartingAfter = stripeapi.String(*startingAfter)
+	}
+	if opts.Stream {
+		params.Limit = stripeapi.Int64(agentstripe.MaxPageSize)
+	}
+	return cli.RunListOrStream(ctx, opts, opts.Client.V1Invoices.ListLines(ctx, params), *limit, cli.LimitExplicit(fs))
 }
 
 func runSearch(ctx context.Context, opts *cli.GlobalOpts, args []string) error {
