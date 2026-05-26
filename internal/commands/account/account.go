@@ -33,8 +33,9 @@ Subcommands:
   set-default <alias>                           Set the default account
   test [alias]                                  Hit GET /v1/account to verify the key
 
-Keys must start with sk_test_ or sk_live_. Use --form on macOS for an OS-native
-dialog (so the agent driving the CLI never sees the secret).
+Keys must start with sk_test_, sk_live_, rk_test_, or rk_live_ (restricted keys
+are supported). Use --form on macOS for an OS-native dialog (so the agent
+driving the CLI never sees the secret).
 
 Help: usage | help | -h | --help`
 
@@ -65,7 +66,7 @@ func Run(ctx context.Context, opts *cli.GlobalOpts, args []string) error {
 func runAdd(args []string) error {
 	fs := flag.NewFlagSet("account add", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
-	keyFlag := fs.String("key", "", "API key (sk_test_... or sk_live_...)")
+	keyFlag := fs.String("key", "", "API key (sk_test_, sk_live_, rk_test_, or rk_live_)")
 	formFlag := fs.Bool("form", false, "prompt for the key via OS-native dialog (macOS)")
 	defaultFlag := fs.Bool("default", false, "set this account as the default")
 	if err := fs.Parse(cli.ReorderFlagsFirst(args, fs)); err != nil {
@@ -77,7 +78,7 @@ func runAdd(args []string) error {
 	}
 	alias := rest[0]
 
-	key, err := readKey(*keyFlag, *formFlag)
+	key, err := readKey(alias, *keyFlag, *formFlag)
 	if err != nil {
 		return err
 	}
@@ -115,12 +116,12 @@ func runAdd(args []string) error {
 
 // readKey resolves the API key from --key, --form, or stdin (only if piped).
 // Never reads from a TTY — agents shouldn't be capturing the secret.
-func readKey(keyFlag string, useForm bool) (string, error) {
+func readKey(alias, keyFlag string, useForm bool) (string, error) {
 	if keyFlag != "" {
 		return strings.TrimSpace(keyFlag), nil
 	}
 	if useForm {
-		return readFromOSDialog()
+		return readFromOSDialog(alias)
 	}
 	if isPipe(os.Stdin) {
 		b, err := io.ReadAll(os.Stdin)
@@ -140,12 +141,14 @@ func isPipe(f *os.File) bool {
 	return (info.Mode() & os.ModeCharDevice) == 0
 }
 
-func readFromOSDialog() (string, error) {
+func readFromOSDialog(alias string) (string, error) {
 	if runtime.GOOS != "darwin" {
 		return "", fmt.Errorf("--form is only supported on macOS in v1 (run on your local machine and use --key elsewhere)")
 	}
-	script := `display dialog "Stripe API key" default answer "" with hidden answer with title "agent-stripe"
-return text returned of result`
+	// AppleScript string-escape the alias so it can't break out of the literal.
+	safeAlias := strings.ReplaceAll(strings.ReplaceAll(alias, `\`, `\\`), `"`, `\"`)
+	script := fmt.Sprintf(`display dialog "Stripe API key for account \"%s\"" default answer "" with hidden answer with title "agent-stripe — %s"
+return text returned of result`, safeAlias, safeAlias)
 	cmd := exec.Command("osascript", "-e", script)
 	out, err := cmd.Output()
 	if err != nil {

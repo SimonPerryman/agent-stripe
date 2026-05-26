@@ -113,14 +113,13 @@ func saveTo(p string, c *Config) error {
 }
 
 // DeriveMode returns ModeTest / ModeLive from the API key prefix.
-// Returns an error for any other prefix — restricted keys (rk_*) are not
-// supported in v1.
+// Accepts secret keys (sk_*) and restricted keys (rk_*).
 func DeriveMode(key string) (Mode, error) {
 	switch {
-	case strings.HasPrefix(key, "sk_test_"):
+	case strings.HasPrefix(key, "sk_test_"), strings.HasPrefix(key, "rk_test_"):
 		return ModeTest, nil
-	case strings.HasPrefix(key, "sk_live_"):
+	case strings.HasPrefix(key, "sk_live_"), strings.HasPrefix(key, "rk_live_"):
 		return ModeLive, nil
 	}
-	return "", errors.New("key must start with sk_test_ or sk_live_")
+	return "", errors.New("key must start with sk_test_, sk_live_, rk_test_, or rk_live_")
 }
