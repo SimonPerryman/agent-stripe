@@ -1,6 +1,6 @@
 # Phase 11 — Test coverage hardening
 
-Status: todo
+Status: done
 
 ## Context
 
