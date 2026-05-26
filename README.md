@@ -78,6 +78,31 @@ agent-stripe invoice list --subscription sub_xxx --status paid
 agent-stripe invoice get in_xxx --expand-stripe charge
 ```
 
+### Trace a Checkout Session through to settlement
+
+The single most common reconciliation path:
+
+```sh
+# session → linked payment intent / subscription / setup intent
+agent-stripe checkout-session get cs_xxx --expand-stripe payment_intent,line_items
+
+# payment intent → underlying charge
+agent-stripe payment-intent get pi_xxx --expand-stripe latest_charge
+
+# charge → settlement (fees, net, available_on)
+agent-stripe charge get ch_xxx --expand-stripe balance_transaction
+```
+
+### Which webhook endpoints fire on a given event?
+
+```sh
+# By event type
+agent-stripe webhook-endpoint for-event charge.succeeded
+
+# By event id (fetches the event first to read its type)
+agent-stripe webhook-endpoint for-event evt_xxx
+```
+
 ### Bulk export
 
 Stream every charge since a timestamp, then process with `jq`:
@@ -101,11 +126,16 @@ Each resource supports `get` and `list`, plus `search` where Stripe does.
 
 | Group        | Resources |
 |--------------|-----------|
-| Money flow   | `charge`, `payment-intent`, `refund`, `dispute`, `payout`, `balance` |
-| Customers    | `customer`, `subscription`, `invoice` |
+| Money flow   | `charge`, `payment-intent`, `payment-method`, `setup-intent`, `refund`, `dispute`, `payout`, `balance`, `transfer` |
+| Checkout     | `checkout-session` |
+| Customers    | `customer`, `subscription`, `subscription-item`, `subscription-schedule`, `invoice`, `invoice-item` |
 | Catalog      | `product`, `price` |
 | Audit        | `event` (with `--related <id>` to reconstruct an object's history) |
+| Webhooks     | `webhook-endpoint` (with `for-event <evt_or_type>` to match enabled_events) |
 | Meta         | `account`, `resource describe`, `usage` |
+
+Sub-resources live as subcommands of their parent: `balance transactions`,
+`setup-intent attempts <seti_id>`, `invoice lines <invoice_id>`.
 
 Power features:
 
