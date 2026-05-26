@@ -67,7 +67,6 @@ func Run(ctx context.Context, opts *cli.GlobalOpts, args []string) error {
 	}
 }
 
-
 func runAdd(args []string) error {
 	fs := flag.NewFlagSet("account add", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
