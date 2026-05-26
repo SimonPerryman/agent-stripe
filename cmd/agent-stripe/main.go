@@ -55,7 +55,7 @@ func buildRegistry() *cli.Registry {
 			"payment-method":        {Run: paymentmethod.Run, Usage: paymentmethod.Usage},
 			"setup-intent":          {Run: setupintent.Run, Usage: setupintent.Usage},
 			"refund":                {Run: refund.Run, Usage: refund.Usage},
-			"dispute":                {Run: dispute.Run, Usage: dispute.Usage},
+			"dispute":               {Run: dispute.Run, Usage: dispute.Usage},
 			"balance":               {Run: balance.Run, Usage: balance.Usage},
 			"payout":                {Run: payout.Run, Usage: payout.Usage},
 			"transfer":              {Run: transfer.Run, Usage: transfer.Usage},
