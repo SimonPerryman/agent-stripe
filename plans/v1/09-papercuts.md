@@ -1,6 +1,6 @@
 # Phase 9 — Smoke-test papercuts
 
-Status: todo
+Status: done
 
 ## Goal
 
