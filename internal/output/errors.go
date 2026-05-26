@@ -24,6 +24,7 @@ const (
 type ErrorEnvelope struct {
 	Error      string    `json:"error"`
 	FixableBy  FixableBy `json:"fixableBy,omitempty"`
+	Hint       string    `json:"hint,omitempty"`
 	StripeCode string    `json:"stripeCode,omitempty"`
 	HTTPStatus int       `json:"httpStatus,omitempty"`
 	RequestID  string    `json:"requestId,omitempty"`
@@ -39,6 +40,25 @@ func Fail(msg string, by FixableBy, code int) {
 	EmitError(os.Stderr, msg, by)
 	os.Exit(code)
 }
+
+// FailWithHint is Fail plus a `hint` field carrying a closest-match suggestion
+// (or "valid: a, b, c" fallback) so an agent can self-correct without a human
+// round-trip. Empty hint behaves identically to Fail.
+func FailWithHint(msg, hint string, by FixableBy, code int) {
+	emit(os.Stderr, ErrorEnvelope{Error: msg, FixableBy: by, Hint: hint})
+	os.Exit(code)
+}
+
+// Error is a sentinel that command packages return when they want the
+// dispatcher to emit a hint without knowing the exit code. The dispatcher
+// detects it via errors.As and routes to FailWithHint.
+type Error struct {
+	Msg  string
+	Hint string
+	By   FixableBy
+}
+
+func (e *Error) Error() string { return e.Msg }
 
 // FailFromStripeError unpacks a *stripe.Error into the structured envelope
 // (human message in `error`, code/status/request-id in their own fields) and

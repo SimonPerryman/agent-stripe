@@ -77,6 +77,22 @@ func TestStripeErrorWrappedIsUnpacked(t *testing.T) {
 	}
 }
 
+func TestEnvelopeHintMarshalling(t *testing.T) {
+	// With a hint set, `hint` appears in JSON.
+	b, err := json.Marshal(ErrorEnvelope{Error: "x", FixableBy: FixableByAgent, Hint: "did you mean \"charge\"?"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := string(b); got != `{"error":"x","fixableBy":"agent","hint":"did you mean \"charge\"?"}` {
+		t.Errorf("with-hint marshal = %s", got)
+	}
+	// Empty hint is omitted.
+	b, _ = json.Marshal(ErrorEnvelope{Error: "x", FixableBy: FixableByAgent})
+	if got := string(b); got != `{"error":"x","fixableBy":"agent"}` {
+		t.Errorf("no-hint marshal = %s", got)
+	}
+}
+
 func TestNonStripeErrorFallsThrough(t *testing.T) {
 	got := stripeErrorEnvelopeFrom(errors.New("local validation failed"))
 	if got.Error != "local validation failed" {

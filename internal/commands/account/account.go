@@ -60,8 +60,13 @@ func Run(ctx context.Context, opts *cli.GlobalOpts, args []string) error {
 		fmt.Fprintln(os.Stderr, Usage)
 		return nil
 	}
-	return fmt.Errorf("unknown account subcommand %q", args[0])
+	return &output.Error{
+		Msg:  fmt.Sprintf("unknown account subcommand %q", args[0]),
+		Hint: cli.SubcommandHint(args[0], []string{"add", "remove", "list", "set-default", "test"}),
+		By:   output.FixableByAgent,
+	}
 }
+
 
 func runAdd(args []string) error {
 	fs := flag.NewFlagSet("account add", flag.ContinueOnError)
@@ -168,7 +173,11 @@ func runRemove(args []string) error {
 	}
 	acc, ok := cfg.Accounts[alias]
 	if !ok {
-		return fmt.Errorf("account %q not found", alias)
+		return &output.Error{
+			Msg:  fmt.Sprintf("account %q not found", alias),
+			Hint: cli.AliasHint(alias, cfg.Accounts),
+			By:   output.FixableByHuman,
+		}
 	}
 	delete(cfg.Accounts, alias)
 	if cfg.DefaultAccount == alias {
@@ -215,7 +224,11 @@ func runSetDefault(args []string) error {
 		return err
 	}
 	if _, ok := cfg.Accounts[args[0]]; !ok {
-		return fmt.Errorf("account %q not found", args[0])
+		return &output.Error{
+			Msg:  fmt.Sprintf("account %q not found", args[0]),
+			Hint: cli.AliasHint(args[0], cfg.Accounts),
+			By:   output.FixableByHuman,
+		}
 	}
 	cfg.DefaultAccount = args[0]
 	if err := config.Save(cfg); err != nil {
@@ -239,7 +252,11 @@ func runTest(ctx context.Context, opts *cli.GlobalOpts, args []string) error {
 		}
 		acc, ok := cfg.Accounts[args[0]]
 		if !ok {
-			return fmt.Errorf("account %q not found", args[0])
+			return &output.Error{
+				Msg:  fmt.Sprintf("account %q not found", args[0]),
+				Hint: cli.AliasHint(args[0], cfg.Accounts),
+				By:   output.FixableByHuman,
+			}
 		}
 		if acc.Mode == config.ModeLive && !opts.Live {
 			return fmt.Errorf("account %q is live-mode; pass --live to confirm", args[0])

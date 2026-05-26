@@ -58,7 +58,11 @@ func Run(ctx context.Context, opts *cli.GlobalOpts, args []string) error {
 		fmt.Fprintln(os.Stderr, Usage)
 		return nil
 	}
-	return fmt.Errorf("unknown event subcommand %q", args[0])
+	return &output.Error{
+		Msg:  fmt.Sprintf("unknown event subcommand %q", args[0]),
+		Hint: cli.SubcommandHint(args[0], []string{"list"}),
+		By:   output.FixableByAgent,
+	}
 }
 
 func runList(ctx context.Context, opts *cli.GlobalOpts, args []string) error {
