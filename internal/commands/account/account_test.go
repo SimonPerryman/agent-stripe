@@ -107,8 +107,8 @@ func TestAccountAdd_StoresSecretAndConfig(t *testing.T) {
 
 func TestAccountAdd_RejectsInvalidKeyPrefix(t *testing.T) {
 	setupSandbox(t)
-	if err := runAdd([]string{"acme", "--key", "rk_test_abc"}); err == nil {
-		t.Fatal("expected error for restricted-key prefix")
+	if err := runAdd([]string{"acme", "--key", "pk_test_abc"}); err == nil {
+		t.Fatal("expected error for publishable-key prefix")
 	}
 }
 

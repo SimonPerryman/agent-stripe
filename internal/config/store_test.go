@@ -46,7 +46,9 @@ func TestDeriveMode(t *testing.T) {
 	}{
 		{"sk_test_abc", ModeTest, false},
 		{"sk_live_abc", ModeLive, false},
-		{"rk_test_abc", "", true},
+		{"rk_test_abc", ModeTest, false},
+		{"rk_live_abc", ModeLive, false},
+		{"pk_test_abc", "", true},
 		{"", "", true},
 	}
 	for _, c := range cases {
