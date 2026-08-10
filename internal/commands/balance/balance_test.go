@@ -26,7 +26,7 @@ func TestBalanceGet_EnvelopeHasObjectData_NoPage(t *testing.T) {
 
 	opts := &cli.GlobalOpts{
 		Account: &config.Account{Alias: "test", Mode: config.ModeTest},
-		Client:  agentstripe.NewClient("sk_test_fake", srv.URL, 5*time.Second),
+		Client:  agentstripe.NewClient("sk_test_fake", srv.URL, "", 5*time.Second),
 	}
 	env := captureEnvelope(t, func() error {
 		return runGet(context.Background(), opts, nil)
@@ -100,7 +100,7 @@ func TestBalanceTransactions_FiltersPassthrough(t *testing.T) {
 
 	opts := &cli.GlobalOpts{
 		Account: &config.Account{Alias: "test", Mode: config.ModeTest},
-		Client:  agentstripe.NewClient("sk_test_fake", srv.URL, 5*time.Second),
+		Client:  agentstripe.NewClient("sk_test_fake", srv.URL, "", 5*time.Second),
 	}
 	old := os.Stdout
 	devnull, _ := os.OpenFile(os.DevNull, os.O_WRONLY, 0)

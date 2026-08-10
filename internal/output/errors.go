@@ -67,16 +67,50 @@ func (e *Error) Error() string { return e.Msg }
 func FailFromStripeError(err error, by FixableBy, code int) {
 	var se *stripeapi.Error
 	if errors.As(err, &se) {
-		emit(os.Stderr, ErrorEnvelope{
-			Error:      se.Msg,
-			FixableBy:  by,
-			StripeCode: string(se.Code),
-			HTTPStatus: se.HTTPStatusCode,
-			RequestID:  se.RequestID,
-		})
+		emit(os.Stderr, StripeErrorEnvelope(se, by))
 		os.Exit(code)
 	}
 	Fail(err.Error(), by, code)
+}
+
+// StripeErrorEnvelope maps a *stripe.Error onto the error envelope, applying
+// the Connect reclassification below. Exported so tests can assert the
+// mapping without going through os.Exit.
+func StripeErrorEnvelope(se *stripeapi.Error, by FixableBy) ErrorEnvelope {
+	env := ErrorEnvelope{
+		Error:      se.Msg,
+		FixableBy:  by,
+		StripeCode: string(se.Code),
+		HTTPStatus: se.HTTPStatusCode,
+		RequestID:  se.RequestID,
+	}
+	if connectBy, hint, ok := classifyConnectError(se); ok {
+		env.FixableBy = connectBy
+		env.Hint = hint
+	}
+	return env
+}
+
+// classifyConnectError reclassifies the two Connect failures an agent cannot
+// fix by retrying. Both default to `agent` otherwise, which sends the agent
+// into a retry loop on a problem only a human with Dashboard access can
+// resolve.
+func classifyConnectError(se *stripeapi.Error) (FixableBy, string, bool) {
+	switch {
+	case se.Code == stripeapi.ErrorCodeAccountInvalid:
+		// The acct_ is not connected to this platform, or does not exist.
+		return FixableByHuman,
+			"check the account is connected to this platform (`agent-stripe --stripe-account <acct_id> account test`), and that the id came from this platform's `connected-account list`",
+			true
+	case se.HTTPStatusCode == 403:
+		// Restricted keys (rk_) are accepted by `account add` but need
+		// Connect read scopes granted in the Dashboard. Naming the scope
+		// beats suggesting a retry that can never succeed.
+		return FixableByHuman,
+			"the API key lacks permission for this resource — a restricted key (rk_) needs the matching Connect read scope (Dashboard → Developers → API keys → edit key), or use a key on the platform account that owns the connection",
+			true
+	}
+	return "", "", false
 }
 
 func emit(w io.Writer, env ErrorEnvelope) {

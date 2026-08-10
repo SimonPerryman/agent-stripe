@@ -25,7 +25,7 @@ func TestPayoutList_StatusPassthrough(t *testing.T) {
 
 	opts := &cli.GlobalOpts{
 		Account: &config.Account{Alias: "test", Mode: config.ModeTest},
-		Client:  agentstripe.NewClient("sk_test_fake", srv.URL, 5*time.Second),
+		Client:  agentstripe.NewClient("sk_test_fake", srv.URL, "", 5*time.Second),
 	}
 	restore := redirectStdout(t)
 	if err := runList(context.Background(), opts, []string{"--status", "pending"}); err != nil {

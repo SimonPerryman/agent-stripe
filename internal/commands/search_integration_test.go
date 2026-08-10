@@ -52,7 +52,7 @@ func TestIntegration_SearchSweep(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			opts := &cli.GlobalOpts{
 				Account: &config.Account{Alias: "it", Mode: config.ModeTest},
-				Client:  agentstripe.NewClient(key, "", 15*time.Second),
+				Client:  agentstripe.NewClient(key, "", "", 15*time.Second),
 			}
 			out, err := captureRun(t, func() error {
 				return tc.run(context.Background(), opts, []string{"search", "--query", tc.query, "--limit", "1"})

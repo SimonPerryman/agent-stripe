@@ -69,7 +69,7 @@ func runDisputeGet(t *testing.T, baseURL, id string, full bool) map[string]any {
 	t.Helper()
 	opts := &cli.GlobalOpts{
 		Account: &config.Account{Alias: "test", Mode: config.ModeTest},
-		Client:  agentstripe.NewClient("sk_test_fake", baseURL, 5*time.Second),
+		Client:  agentstripe.NewClient("sk_test_fake", baseURL, "", 5*time.Second),
 		Full:    full,
 	}
 	old := os.Stdout

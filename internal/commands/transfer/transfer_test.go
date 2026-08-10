@@ -25,7 +25,7 @@ func TestTransferList_FilterPassthrough(t *testing.T) {
 
 	opts := &cli.GlobalOpts{
 		Account: &config.Account{Alias: "test", Mode: config.ModeTest},
-		Client:  agentstripe.NewClient("sk_test_fake", srv.URL, 5*time.Second),
+		Client:  agentstripe.NewClient("sk_test_fake", srv.URL, "", 5*time.Second),
 	}
 	restore := redirectStdout(t)
 	if err := runList(context.Background(), opts, []string{
@@ -65,7 +65,7 @@ func TestTransferReversals_PathParam(t *testing.T) {
 
 	opts := &cli.GlobalOpts{
 		Account: &config.Account{Alias: "test", Mode: config.ModeTest},
-		Client:  agentstripe.NewClient("sk_test_fake", srv.URL, 5*time.Second),
+		Client:  agentstripe.NewClient("sk_test_fake", srv.URL, "", 5*time.Second),
 	}
 	restore := redirectStdout(t)
 	if err := runReversals(context.Background(), opts, []string{"tr_abc", "--limit", "5"}); err != nil {
@@ -94,7 +94,7 @@ func TestTransferReversal_PathParams(t *testing.T) {
 
 	opts := &cli.GlobalOpts{
 		Account: &config.Account{Alias: "test", Mode: config.ModeTest},
-		Client:  agentstripe.NewClient("sk_test_fake", srv.URL, 5*time.Second),
+		Client:  agentstripe.NewClient("sk_test_fake", srv.URL, "", 5*time.Second),
 	}
 	restore := redirectStdout(t)
 	if err := runReversal(context.Background(), opts, []string{"tr_abc", "trr_x"}); err != nil {

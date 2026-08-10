@@ -37,9 +37,11 @@ results.
 Streaming: pass --stream (top-level) on list or reversals to emit NDJSON
 over pages until --limit or exhausted.
 
-Scope: this command operates on the platform account only. Listing transfers
-from a connected account's perspective (Stripe-Account header) is v2; no
---stripe-account flag exists today.
+Scope: by default this reads the platform account's transfers — the money
+leaving the platform. Pass --stripe-account acct_... (global) to read the same
+endpoint from the connected account's side, where the arriving funds show up
+as a balance transaction rather than a transfer. A transfer's destination id
+is exactly the value that flag wants.
 
 Cross-reference: a transfer's source_transaction is the originating ch_...
 (common for destination-charge flows) and its balance_transaction is the

@@ -27,7 +27,7 @@ func TestClientHitsAccountEndpoint(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	client := NewClient("sk_test_fake", srv.URL, 5*time.Second)
+	client := NewClient("sk_test_fake", srv.URL, "", 5*time.Second)
 	acct, err := client.V1Accounts.Retrieve(context.Background(), &stripeapi.AccountRetrieveParams{})
 	if err != nil {
 		t.Fatalf("Retrieve: %v", err)

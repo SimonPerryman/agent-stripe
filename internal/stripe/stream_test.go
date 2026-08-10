@@ -16,7 +16,7 @@ func TestStreamRawList_EmitsIncrementally(t *testing.T) {
 	// 12 items, page size 5 → at least 3 pages. Assert emit fires per-item,
 	// not only after the final page.
 	srv, _ := newPaginatedCustomerServer(t, 12, 5)
-	client := NewClient("sk_test_fake", srv.URL, 5*time.Second)
+	client := NewClient("sk_test_fake", srv.URL, "", 5*time.Second)
 
 	var emitted []string
 	count, err := StreamRawList(context.Background(), client.V1Customers.List(context.Background(), &stripeapi.CustomerListParams{}), 0, func(m map[string]any) error {
@@ -39,7 +39,7 @@ func TestStreamRawList_EmitsIncrementally(t *testing.T) {
 
 func TestStreamRawList_MaxResultsStops(t *testing.T) {
 	srv, _ := newPaginatedCustomerServer(t, 50, 10)
-	client := NewClient("sk_test_fake", srv.URL, 5*time.Second)
+	client := NewClient("sk_test_fake", srv.URL, "", 5*time.Second)
 
 	count, err := StreamRawList(context.Background(), client.V1Customers.List(context.Background(), &stripeapi.CustomerListParams{}), 4, func(m map[string]any) error {
 		return nil
@@ -54,7 +54,7 @@ func TestStreamRawList_MaxResultsStops(t *testing.T) {
 
 func TestStreamRawList_EmitErrorPropagates(t *testing.T) {
 	srv, _ := newPaginatedCustomerServer(t, 5, 5)
-	client := NewClient("sk_test_fake", srv.URL, 5*time.Second)
+	client := NewClient("sk_test_fake", srv.URL, "", 5*time.Second)
 
 	sentinel := errors.New("broken pipe")
 	count, err := StreamRawList(context.Background(), client.V1Customers.List(context.Background(), &stripeapi.CustomerListParams{}), 0, func(m map[string]any) error {
@@ -81,7 +81,7 @@ func TestStreamRawList_ServerErrorMidStream(t *testing.T) {
 		_, _ = io.WriteString(w, `{"error":{"message":"boom"}}`)
 	}))
 	defer srv.Close()
-	client := NewClient("sk_test_fake", srv.URL, 5*time.Second)
+	client := NewClient("sk_test_fake", srv.URL, "", 5*time.Second)
 
 	var emitted int
 	count, err := StreamRawList(context.Background(), client.V1Customers.List(context.Background(), &stripeapi.CustomerListParams{}), 0, func(m map[string]any) error {
@@ -101,7 +101,7 @@ func TestStreamRawList_ServerErrorMidStream(t *testing.T) {
 
 func TestStreamRawList_ContextCancellation(t *testing.T) {
 	srv, _ := newPaginatedCustomerServer(t, 50, 10)
-	client := NewClient("sk_test_fake", srv.URL, 5*time.Second)
+	client := NewClient("sk_test_fake", srv.URL, "", 5*time.Second)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	_, err := StreamRawList(ctx, client.V1Customers.List(ctx, &stripeapi.CustomerListParams{}), 0, func(m map[string]any) error { return nil })

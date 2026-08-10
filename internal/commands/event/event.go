@@ -142,13 +142,10 @@ func runRelated(ctx context.Context, opts *cli.GlobalOpts, list *stripeapi.V1Lis
 	if err != nil {
 		return err
 	}
-	return output.Emit(os.Stdout, output.Envelope{
-		Mode:       string(opts.Account.Mode),
-		Account:    opts.Account.Alias,
-		APIVersion: agentstripe.PinnedAPIVersion,
-		Data:       rendered,
-		Scan:       &output.Scan{Scanned: scanned, Matched: len(matched), Truncated: truncated},
-	})
+	env := cli.EnvelopeFor(opts)
+	env.Data = rendered
+	env.Scan = &output.Scan{Scanned: scanned, Matched: len(matched), Truncated: truncated}
+	return output.Emit(os.Stdout, env)
 }
 
 func runRelatedStream(ctx context.Context, opts *cli.GlobalOpts, list *stripeapi.V1List[*stripeapi.Event], related string, maxScan, limit int, limitExplicit bool) error {
