@@ -143,6 +143,34 @@ Fields that link the two views: `on_behalf_of`, `application_fee_amount`,
 `on_behalf_of` is a field set at creation time — not the `Stripe-Account`
 header, and not something this read-only CLI can set.
 
+### Reconcile a payout against a bank statement
+
+```sh
+# arrival_date, not created — created is when Stripe opened the payout,
+# arrival_date is when the money actually lands, and they differ routinely
+agent-stripe payout list --arrival-date-gt 1735689600 --arrival-date-lt 1738368000
+
+# what's inside one payout, and one row from it in isolation
+agent-stripe balance transactions --payout po_xxx
+agent-stripe balance transaction txn_xxx
+
+# the other direction: which ledger rows did this charge produce?
+agent-stripe balance transactions --source ch_xxx
+```
+
+### "No such coupon" on a connected account
+
+Coupons and promotion codes are per-account and do not inherit from the
+platform, so the same id can exist on one and not the other:
+
+```sh
+agent-stripe coupon get LAUNCH20                            # platform
+agent-stripe --stripe-account acct_xxx coupon get LAUNCH20  # the account
+
+# find a code by the string the customer typed (no Search API for either)
+agent-stripe promotion-code list --code LAUNCH20
+```
+
 ### Bulk export
 
 Stream every charge since a timestamp, then process with `jq`:
@@ -169,15 +197,18 @@ Each resource supports `get` and `list`, plus `search` where Stripe does.
 | Money flow   | `charge`, `payment-intent`, `payment-method`, `setup-intent`, `refund`, `dispute`, `payout`, `balance`, `transfer` |
 | Checkout     | `checkout-session` |
 | Customers    | `customer`, `subscription`, `subscription-item`, `subscription-schedule`, `invoice`, `invoice-item` |
-| Catalog      | `product`, `price` |
+| Catalog      | `product`, `price`, `coupon`, `promotion-code` |
 | Connect      | `connected-account` (with `capabilities`, `persons`, `external-accounts`), `application-fee` (with `refunds`) |
 | Audit        | `event` (with `--related <id>` to reconstruct an object's history) |
 | Webhooks     | `webhook-endpoint` (with `for-event <evt_or_type>` to match enabled_events) |
+| Testing      | `test-clock` (test mode only) |
 | Meta         | `account`, `resource describe`, `usage` |
 
 Sub-resources live as subcommands of their parent: `balance transactions`,
 `setup-intent attempts <seti_id>`, `invoice lines <invoice_id>`,
 `connected-account capabilities <acct_id>`, `application-fee refunds <fee_id>`.
+Singular names fetch one, plural list: `balance transaction <txn_id>` vs
+`balance transactions`, `transfer reversal` vs `transfer reversals`.
 
 Power features:
 
