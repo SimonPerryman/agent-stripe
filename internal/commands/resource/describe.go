@@ -49,6 +49,11 @@ var resourceRegistry = map[string]any{
 	"product":               stripeapi.Product{},
 	"price":                 stripeapi.Price{},
 	"webhook-endpoint":      stripeapi.WebhookEndpoint{},
+	"connected-account":     stripeapi.Account{},
+	"person":                stripeapi.Person{},
+	"capability":            stripeapi.Capability{},
+	"application-fee":       stripeapi.ApplicationFee{},
+	"fee-refund":            stripeapi.FeeRefund{},
 }
 
 // expandPathsByResource mirrors the "Recommended --expand-stripe paths"
@@ -77,6 +82,13 @@ var expandPathsByResource = map[string][]string{
 	"setup-attempt":         {"payment_method"},
 	"checkout-session":      {"payment_intent", "subscription", "setup_intent", "customer", "line_items"},
 	"webhook-endpoint":      {},
+	"connected-account":     {"external_accounts", "settings", "requirements"},
+	"application-fee":       {"charge", "balance_transaction", "refunds", "originating_transaction"},
+	// person / capability / fee-refund are small, self-contained shapes with
+	// nothing worth expanding.
+	"person":     {},
+	"capability": {},
+	"fee-refund": {},
 }
 
 // lowSignal is the housekeeping field set we mark `lowSignal: true` on so the

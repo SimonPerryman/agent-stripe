@@ -11,9 +11,11 @@ import (
 
 	"github.com/simonperryman/agent-stripe/internal/cli"
 	"github.com/simonperryman/agent-stripe/internal/commands/account"
+	"github.com/simonperryman/agent-stripe/internal/commands/applicationfee"
 	"github.com/simonperryman/agent-stripe/internal/commands/balance"
 	"github.com/simonperryman/agent-stripe/internal/commands/charge"
 	"github.com/simonperryman/agent-stripe/internal/commands/checkoutsession"
+	"github.com/simonperryman/agent-stripe/internal/commands/connectedaccount"
 	"github.com/simonperryman/agent-stripe/internal/commands/customer"
 	"github.com/simonperryman/agent-stripe/internal/commands/dispute"
 	"github.com/simonperryman/agent-stripe/internal/commands/event"
@@ -48,6 +50,8 @@ func buildRegistry() *cli.Registry {
 	return &cli.Registry{
 		Commands: map[string]cli.CommandSpec{
 			"account":               {Run: account.Run, Usage: account.Usage},
+			"connected-account":     {Run: connectedaccount.Run, Usage: connectedaccount.Usage},
+			"application-fee":       {Run: applicationfee.Run, Usage: applicationfee.Usage},
 			"customer":              {Run: customer.Run, Usage: customer.Usage},
 			"event":                 {Run: event.Run, Usage: event.Usage},
 			"charge":                {Run: charge.Run, Usage: charge.Usage},
