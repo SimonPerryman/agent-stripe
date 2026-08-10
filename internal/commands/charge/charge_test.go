@@ -33,6 +33,27 @@ func TestChargeList_CustomerFilterPassthrough(t *testing.T) {
 	}
 }
 
+// transfer_group is the join key across the legs of a split payment, so
+// `charge list` has to filter on it the same way `transfer list` already does.
+func TestChargeList_TransferGroupPassthrough(t *testing.T) {
+	var gotQuery string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotQuery = r.URL.RawQuery
+		_, _ = io.WriteString(w, `{"object":"list","data":[],"has_more":false,"url":"/v1/charges"}`)
+	}))
+	defer srv.Close()
+
+	opts := testutil.NewOpts(srv.URL)
+	testutil.CaptureStdout(t)
+	if err := runList(context.Background(), opts, []string{"--transfer-group", "group_abc"}); err != nil {
+		t.Fatalf("runList: %v", err)
+	}
+
+	if !strings.Contains(gotQuery, "transfer_group=group_abc") {
+		t.Errorf("expected transfer_group=group_abc in query, got %q", gotQuery)
+	}
+}
+
 func TestChargeGet_ExpandStripeQueryString(t *testing.T) {
 	var gotQuery string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
