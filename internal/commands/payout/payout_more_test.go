@@ -54,6 +54,29 @@ func TestPayoutList_FiltersPassthrough(t *testing.T) {
 	}
 }
 
+// Payouts reconcile by arrival date, not creation date — and the two ranges
+// have to survive being passed together, since they are separate form keys
+// answering separate questions.
+func TestPayoutList_ArrivalDateRangePassthrough(t *testing.T) {
+	var gotQuery string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotQuery = r.URL.RawQuery
+		_, _ = io.WriteString(w, `{"object":"list","data":[],"has_more":false,"url":"/v1/payouts"}`)
+	}))
+	defer srv.Close()
+	opts := testutil.NewOpts(srv.URL)
+	testutil.CaptureStdout(t)
+	args := []string{"--arrival-date-gt", "30", "--arrival-date-lt", "40", "--created-gt", "10"}
+	if err := runList(context.Background(), opts, args); err != nil {
+		t.Fatalf("runList: %v", err)
+	}
+	for _, want := range []string{"arrival_date[gt]=30", "arrival_date[lt]=40", "created[gt]=10"} {
+		if !strings.Contains(gotQuery, want) {
+			t.Errorf("expected %q in query, got %q", want, gotQuery)
+		}
+	}
+}
+
 func TestPayoutRun_Dispatch(t *testing.T) {
 	opts := &cli.GlobalOpts{}
 	if err := Run(context.Background(), opts, nil); err != nil {
