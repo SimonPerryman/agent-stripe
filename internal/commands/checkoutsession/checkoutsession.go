@@ -39,6 +39,11 @@ Recommended --expand-stripe paths:
 line_items is a synthetic field: it is only present when explicitly expanded.
 Fine on get; avoid on list (payload size).
 
+Connect: a session created with the Stripe-Account header lives on the
+connected account and is invisible from the platform. Pass --stripe-account
+acct_... (global). Sessions that only set transfer_data/application_fee_amount
+are platform sessions and need no flag.
+
 Help: usage | help | -h | --help`
 
 func Run(ctx context.Context, opts *cli.GlobalOpts, args []string) error {

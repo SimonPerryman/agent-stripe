@@ -1,6 +1,6 @@
 # Phase 12 — More read coverage: Checkout, PaymentMethods, SetupIntents, Subscription/Invoice sub-resources, Webhooks
 
-Status: draft
+Status: done
 
 ## Goal
 
@@ -194,3 +194,4 @@ All gated behind `STRIPE_TEST_KEY`; skip cleanly when unset. `make integration` 
 - 2026-05-25 — Drafted plan.
 - 2026-05-25 — Resolved all six open questions. Two SDK-shape findings reshaped the plan: (a) SubscriptionSchedule has no status enum, only `Scheduled *bool` + transition date ranges; (b) invoice lines is `V1Invoices.ListLines` on the parent service. Sections 5 and 7 rewritten accordingly. Soft decisions (PaymentMethod reject, `for-event` accepts evt_ ids, full envelope, expand on `invoice lines`) recorded above.
 - 2026-05-26 — Fixed stale §10 test description for `subscriptionschedule_test.go`: it referenced a `--status canceled` flag that no longer exists after the §5 rewrite. Replaced with `--scheduled` + `--canceled-at-gt`/`--canceled-at-lt` passthrough assertions.
+- 2026-08-10 — Marked done. Shipped in `683d104` ("feat: add v2 read coverage for checkout, payment/setup, sub-resources, webhooks", #6); the status header had been left at `draft`.

@@ -42,8 +42,17 @@ func CaptureStdout(t *testing.T) {
 // returned opts is populated with a deterministic test-mode account so list
 // commands can fill the envelope's mode/account fields without crashing.
 func NewOpts(baseURL string) *cli.GlobalOpts {
+	return NewOptsForAccount(baseURL, "")
+}
+
+// NewOptsForAccount is NewOpts scoped to a connected account, so a command
+// test can assert the Stripe-Account header reaches the wire. Threading the
+// parameter through this one helper is what gives every command package
+// Connect coverage without per-package changes.
+func NewOptsForAccount(baseURL, stripeAccount string) *cli.GlobalOpts {
 	return &cli.GlobalOpts{
-		Account: &config.Account{Alias: "test", Mode: config.ModeTest},
-		Client:  agentstripe.NewClient("sk_test_fake", baseURL, 5*time.Second),
+		Account:       &config.Account{Alias: "test", Mode: config.ModeTest},
+		StripeAccount: stripeAccount,
+		Client:        agentstripe.NewClient("sk_test_fake", baseURL, stripeAccount, 5*time.Second),
 	}
 }

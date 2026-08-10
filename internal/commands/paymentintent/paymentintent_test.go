@@ -28,7 +28,7 @@ func TestPaymentIntentGet_ExpandLatestCharge(t *testing.T) {
 
 	opts := &cli.GlobalOpts{
 		Account:      &config.Account{Alias: "test", Mode: config.ModeTest},
-		Client:       agentstripe.NewClient("sk_test_fake", srv.URL, 5*time.Second),
+		Client:       agentstripe.NewClient("sk_test_fake", srv.URL, "", 5*time.Second),
 		ExpandStripe: []string{"latest_charge"},
 	}
 	restore := redirectStdout(t)
@@ -52,7 +52,7 @@ func TestPaymentIntentSearch_QueryAndPage(t *testing.T) {
 
 	opts := &cli.GlobalOpts{
 		Account: &config.Account{Alias: "test", Mode: config.ModeTest},
-		Client:  agentstripe.NewClient("sk_test_fake", srv.URL, 5*time.Second),
+		Client:  agentstripe.NewClient("sk_test_fake", srv.URL, "", 5*time.Second),
 	}
 	restore := redirectStdout(t)
 	if err := runSearch(context.Background(), opts, []string{"--query", `status:"succeeded"`, "--page", "tok_abc", "--limit", "5"}); err != nil {
@@ -71,7 +71,7 @@ func TestPaymentIntentSearch_QueryAndPage(t *testing.T) {
 func TestPaymentIntentSearch_MissingQueryErrors(t *testing.T) {
 	opts := &cli.GlobalOpts{
 		Account: &config.Account{Alias: "test", Mode: config.ModeTest},
-		Client:  agentstripe.NewClient("sk_test_fake", "http://unused", 5*time.Second),
+		Client:  agentstripe.NewClient("sk_test_fake", "http://unused", "", 5*time.Second),
 	}
 	if err := runSearch(context.Background(), opts, []string{}); err == nil {
 		t.Fatal("expected error when --query is missing")

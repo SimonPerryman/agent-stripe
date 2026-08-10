@@ -47,6 +47,10 @@ human-readable identifiers (e.g. "pro_monthly_usd"). Up to 10 keys.
 --active=false for archived only. --currency is normalised to lowercase
 silently (Stripe is case-insensitive on input).
 
+Connect: prices belong to the account that owns their product, so a connected
+account's prices need --stripe-account acct_... (global). A price_ id does not
+cross the account boundary.
+
 Help: usage | help | -h | --help`
 
 func Run(ctx context.Context, opts *cli.GlobalOpts, args []string) error {

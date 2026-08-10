@@ -15,13 +15,18 @@ const DefaultTruncateLength = 200
 
 // Envelope is the wrapper around every successful response.
 type Envelope struct {
-	Mode       string `json:"mode"`
-	Account    string `json:"account"`
-	APIVersion string `json:"apiVersion"`
-	Data       any    `json:"data,omitempty"`
-	Page       *Page  `json:"page,omitempty"`
-	Scan       *Scan  `json:"scan,omitempty"`
-	Stream     bool   `json:"stream,omitempty"`
+	Mode    string `json:"mode"`
+	Account string `json:"account"`
+	// StripeAccount echoes the connected account these results were read
+	// from (--stripe-account). Empty — and omitted — means the platform
+	// account. Without it a platform charge and a connected-account charge
+	// are indistinguishable in the output.
+	StripeAccount string `json:"stripeAccount,omitempty"`
+	APIVersion    string `json:"apiVersion"`
+	Data          any    `json:"data,omitempty"`
+	Page          *Page  `json:"page,omitempty"`
+	Scan          *Scan  `json:"scan,omitempty"`
+	Stream        bool   `json:"stream,omitempty"`
 }
 
 // Page describes pagination state for list/search responses.

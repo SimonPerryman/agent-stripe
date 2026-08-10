@@ -36,6 +36,9 @@ Streaming: pass --stream (top-level) on list to emit NDJSON over pages until
 Recommended --expand-stripe paths:
   price.product
 
+Connect: items belong to the account that owns the subscription, so a connected
+account's items need --stripe-account acct_... (global).
+
 Help: usage | help | -h | --help`
 
 func Run(ctx context.Context, opts *cli.GlobalOpts, args []string) error {

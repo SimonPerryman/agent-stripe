@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 
 	stripeapi "github.com/stripe/stripe-go/v85"
@@ -100,5 +101,60 @@ func TestNonStripeErrorFallsThrough(t *testing.T) {
 	}
 	if got.StripeCode != "" || got.HTTPStatus != 0 || got.RequestID != "" {
 		t.Fatalf("expected stripe fields empty for non-stripe error: %+v", got)
+	}
+}
+
+// account_invalid means the acct_ isn't connected to this platform (or doesn't
+// exist). Retrying can never fix that, so it must not be reported as
+// agent-fixable.
+func TestConnectAccountInvalidIsHumanFixable(t *testing.T) {
+	se := &stripeapi.Error{
+		Code:           stripeapi.ErrorCodeAccountInvalid,
+		HTTPStatusCode: 403,
+		Msg:            "The provided key does not have access to account 'acct_x'",
+		Type:           stripeapi.ErrorTypeInvalidRequest,
+	}
+	got := StripeErrorEnvelope(se, FixableByAgent)
+	if got.FixableBy != FixableByHuman {
+		t.Errorf("fixableBy = %q, want human", got.FixableBy)
+	}
+	if !strings.Contains(got.Hint, "connected to this platform") {
+		t.Errorf("hint should point at the platform connection, got %q", got.Hint)
+	}
+	if got.StripeCode != string(stripeapi.ErrorCodeAccountInvalid) {
+		t.Errorf("stripeCode = %q", got.StripeCode)
+	}
+}
+
+// A restricted key without the Connect read scope 403s with no specific code.
+// The hint must name the missing permission rather than suggest a retry.
+func TestConnectPermissionErrorIsHumanFixable(t *testing.T) {
+	se := &stripeapi.Error{
+		HTTPStatusCode: 403,
+		Msg:            "This API key does not have permission to read this resource.",
+		Type:           stripeapi.ErrorTypeInvalidRequest,
+	}
+	got := StripeErrorEnvelope(se, FixableByAgent)
+	if got.FixableBy != FixableByHuman {
+		t.Errorf("fixableBy = %q, want human", got.FixableBy)
+	}
+	if !strings.Contains(got.Hint, "restricted key") {
+		t.Errorf("hint should name the restricted-key scope, got %q", got.Hint)
+	}
+}
+
+// Ordinary Stripe errors keep the caller's classification and gain no hint.
+func TestNonConnectErrorKeepsAgentFixable(t *testing.T) {
+	se := &stripeapi.Error{
+		Code:           stripeapi.ErrorCodeResourceMissing,
+		HTTPStatusCode: 404,
+		Msg:            "No such charge",
+	}
+	got := StripeErrorEnvelope(se, FixableByAgent)
+	if got.FixableBy != FixableByAgent {
+		t.Errorf("fixableBy = %q, want agent", got.FixableBy)
+	}
+	if got.Hint != "" {
+		t.Errorf("hint = %q, want empty", got.Hint)
 	}
 }

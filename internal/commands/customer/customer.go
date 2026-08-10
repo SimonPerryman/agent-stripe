@@ -35,6 +35,11 @@ next_page token). Not interchangeable.
 Streaming: pass --stream (top-level) on list/search to emit NDJSON over pages
 until --limit or exhausted.
 
+Connect: customers are per-account. The platform and a connected account can
+each hold a distinct cus_... for the same person, with the same email, and
+neither is visible from the other. Pass --stripe-account acct_... (global) to
+read the connected account's. Never assume a cus_ id crosses the boundary.
+
 Help: usage | help | -h | --help`
 
 func Run(ctx context.Context, opts *cli.GlobalOpts, args []string) error {

@@ -59,7 +59,7 @@ func newPaginatedCustomerServer(t *testing.T, total, pageSize int) (*httptest.Se
 
 func TestCollectRawList_SinglePage(t *testing.T) {
 	srv, _ := newPaginatedCustomerServer(t, 3, 10)
-	client := NewClient("sk_test_fake", srv.URL, 5*time.Second)
+	client := NewClient("sk_test_fake", srv.URL, "", 5*time.Second)
 
 	params := &stripeapi.CustomerListParams{}
 	params.Limit = stripeapi.Int64(10)
@@ -84,7 +84,7 @@ func TestCollectRawList_SinglePage(t *testing.T) {
 func TestCollectRawList_MultiPage(t *testing.T) {
 	// 25 items, page size 10 → 3 requests (10, 10, 5)
 	srv, calls := newPaginatedCustomerServer(t, 25, 10)
-	client := NewClient("sk_test_fake", srv.URL, 5*time.Second)
+	client := NewClient("sk_test_fake", srv.URL, "", 5*time.Second)
 
 	params := &stripeapi.CustomerListParams{}
 	params.Limit = stripeapi.Int64(10)
@@ -109,7 +109,7 @@ func TestCollectRawList_MultiPage(t *testing.T) {
 func TestCollectRawList_CapHonouredAndHasMore(t *testing.T) {
 	// 50 items, cap 7 → stop at 7, has_more should still be true.
 	srv, _ := newPaginatedCustomerServer(t, 50, 10)
-	client := NewClient("sk_test_fake", srv.URL, 5*time.Second)
+	client := NewClient("sk_test_fake", srv.URL, "", 5*time.Second)
 
 	params := &stripeapi.CustomerListParams{}
 	params.Limit = stripeapi.Int64(10)
@@ -130,7 +130,7 @@ func TestCollectRawList_CapHonouredAndHasMore(t *testing.T) {
 
 func TestCollectRawList_Empty(t *testing.T) {
 	srv, _ := newPaginatedCustomerServer(t, 0, 10)
-	client := NewClient("sk_test_fake", srv.URL, 5*time.Second)
+	client := NewClient("sk_test_fake", srv.URL, "", 5*time.Second)
 
 	items, hasMore, cursor, err := CollectRawList(context.Background(), client.V1Customers.List(context.Background(), &stripeapi.CustomerListParams{}), 0)
 	if err != nil {
@@ -153,7 +153,7 @@ func TestCollectRawList_ServerError(t *testing.T) {
 		_, _ = io.WriteString(w, `{"error":{"message":"boom"}}`)
 	}))
 	defer srv.Close()
-	client := NewClient("sk_test_fake", srv.URL, 5*time.Second)
+	client := NewClient("sk_test_fake", srv.URL, "", 5*time.Second)
 
 	_, _, _, err := CollectRawList(context.Background(), client.V1Customers.List(context.Background(), &stripeapi.CustomerListParams{}), 10)
 	if err == nil {
@@ -168,7 +168,7 @@ func TestCollectRawList_ContextCancellation(t *testing.T) {
 		_, _ = io.WriteString(w, `{"object":"list","data":[{"id":"cus_x","object":"customer"}],"has_more":true,"url":"/v1/customers"}`)
 	}))
 	defer srv.Close()
-	client := NewClient("sk_test_fake", srv.URL, 5*time.Second)
+	client := NewClient("sk_test_fake", srv.URL, "", 5*time.Second)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -206,7 +206,7 @@ func TestCollectRawList_LimitClampedToDefault(t *testing.T) {
 	// Passing maxResults<=0 falls through to DefaultMaxResults.
 	// 5 items, default cap exceeds total, so we drain fully.
 	srv, _ := newPaginatedCustomerServer(t, 5, 10)
-	client := NewClient("sk_test_fake", srv.URL, 5*time.Second)
+	client := NewClient("sk_test_fake", srv.URL, "", 5*time.Second)
 	items, hasMore, _, err := CollectRawList(context.Background(), client.V1Customers.List(context.Background(), &stripeapi.CustomerListParams{}), 0)
 	if err != nil {
 		t.Fatal(err)
@@ -235,7 +235,7 @@ func TestCollectRawList_StartingAfterPassedToServer(t *testing.T) {
 		}
 	}))
 	defer srv.Close()
-	client := NewClient("sk_test_fake", srv.URL, 5*time.Second)
+	client := NewClient("sk_test_fake", srv.URL, "", 5*time.Second)
 	items, _, _, err := CollectRawList(context.Background(), client.V1Customers.List(context.Background(), &stripeapi.CustomerListParams{}), 50)
 	if err != nil {
 		t.Fatal(err)

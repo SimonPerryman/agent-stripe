@@ -15,9 +15,13 @@ const PinnedAPIVersion = stripeapi.APIVersion
 // NewClient returns a Stripe client configured for read-only access against
 // the given URL (or the Stripe default if baseURL is empty), with the given
 // per-request timeout. The HTTP transport is wrapped to reject non-GET calls.
-func NewClient(apiKey, baseURL string, timeout time.Duration) *stripeapi.Client {
+//
+// stripeAccount, when non-empty, scopes every request to that connected
+// account via the Stripe-Account header. The read-only transport stays
+// outermost so its guarantee is evaluated before anything else in the chain.
+func NewClient(apiKey, baseURL, stripeAccount string, timeout time.Duration) *stripeapi.Client {
 	httpClient := &http.Client{
-		Transport: NewReadOnlyTransport(nil),
+		Transport: NewReadOnlyTransport(NewStripeAccountTransport(stripeAccount, nil)),
 		Timeout:   timeout,
 	}
 	cfg := &stripeapi.BackendConfig{

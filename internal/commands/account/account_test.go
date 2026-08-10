@@ -255,7 +255,7 @@ func TestAccountTest_NoArgUsesGlobalClient(t *testing.T) {
 	_, read := setupSandbox(t)
 	opts := &cli.GlobalOpts{
 		Account: &config.Account{Alias: "acme", Mode: config.ModeTest},
-		Client:  agentstripe.NewClient("sk_test_fake", srv.URL, 5*time.Second),
+		Client:  agentstripe.NewClient("sk_test_fake", srv.URL, "", 5*time.Second),
 		Timeout: 5 * time.Second,
 	}
 	if err := runTest(context.Background(), opts, nil); err != nil {
@@ -317,5 +317,37 @@ func TestRun_EmptyArgsPrintsUsage(t *testing.T) {
 	setupSandbox(t)
 	if err := Run(context.Background(), &cli.GlobalOpts{}, nil); err != nil {
 		t.Errorf("expected nil for empty args, got %v", err)
+	}
+}
+
+// `account test --stripe-account acct_x` is the Connect probe: the first step
+// of any Connect investigation. It must both send the header and say so in the
+// envelope — reporting success against the platform account while appearing to
+// confirm the connected one is the worst possible failure for a command whose
+// entire job is verifying scope.
+func TestAccountTest_ConnectProbe(t *testing.T) {
+	var gotHeader string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotHeader = r.Header.Get("Stripe-Account")
+		_, _ = io.WriteString(w, `{"id":"acct_connected","country":"GB","default_currency":"gbp"}`)
+	}))
+	defer srv.Close()
+
+	_, read := setupSandbox(t)
+	opts := &cli.GlobalOpts{
+		Account:       &config.Account{Alias: "acme", Mode: config.ModeTest},
+		StripeAccount: "acct_connected",
+		Client:        agentstripe.NewClient("sk_test_fake", srv.URL, "acct_connected", 5*time.Second),
+		Timeout:       5 * time.Second,
+	}
+	if err := runTest(context.Background(), opts, nil); err != nil {
+		t.Fatalf("runTest: %v", err)
+	}
+	if gotHeader != "acct_connected" {
+		t.Errorf("Stripe-Account header = %q, want acct_connected", gotHeader)
+	}
+	env := decodeEnvelope(t, read())
+	if env["stripeAccount"] != "acct_connected" {
+		t.Errorf("envelope stripeAccount = %v, want acct_connected", env["stripeAccount"])
 	}
 }

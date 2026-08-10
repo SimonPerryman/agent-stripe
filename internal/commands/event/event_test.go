@@ -65,7 +65,7 @@ func fakeEventsServer(t *testing.T, total int, objectIDFor func(i int) string) *
 func newEventOpts(baseURL string, stream bool) *cli.GlobalOpts {
 	return &cli.GlobalOpts{
 		Account: &config.Account{Alias: "test", Mode: config.ModeTest},
-		Client:  agentstripe.NewClient("sk_test_fake", baseURL, 5*time.Second),
+		Client:  agentstripe.NewClient("sk_test_fake", baseURL, "", 5*time.Second),
 		Stream:  stream,
 	}
 }

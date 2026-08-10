@@ -202,3 +202,23 @@ func TestStreamerHeaderThenRecords(t *testing.T) {
 		t.Fatalf("header line should be stream:true with no data")
 	}
 }
+
+func TestEnvelopeStripeAccountMarshalling(t *testing.T) {
+	// Present when set...
+	b, err := json.Marshal(Envelope{Mode: "test", Account: "acme", StripeAccount: "acct_123", APIVersion: "v1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(b), `"stripeAccount":"acct_123"`) {
+		t.Errorf("expected stripeAccount in output, got %s", b)
+	}
+	// ...and omitted when empty, so every platform-scoped expectation that
+	// predates Connect support is byte-for-byte unchanged.
+	b, err = json.Marshal(Envelope{Mode: "test", Account: "acme", APIVersion: "v1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(b), "stripeAccount") {
+		t.Errorf("expected stripeAccount omitted when empty, got %s", b)
+	}
+}

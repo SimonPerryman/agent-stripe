@@ -46,6 +46,7 @@ func newGlobalsFlagSet() (*flag.FlagSet, *string) {
 	fs := flag.NewFlagSet("agent-stripe", flag.ContinueOnError)
 	fs.SetOutput(new(strings.Builder)) // swallow usage on error
 	account := fs.String("account", "", "account alias")
+	fs.String("stripe-account", "", "")
 	fs.Bool("live", false, "")
 	fs.Bool("full", false, "")
 	fs.String("expand", "", "")

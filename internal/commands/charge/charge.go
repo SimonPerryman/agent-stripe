@@ -41,7 +41,20 @@ Streaming: pass --stream (top-level) on list/search to emit NDJSON over pages
 until --limit or exhausted.
 
 Common --expand-stripe paths:
-  customer, balance_transaction, application_fee, transfer, invoice
+  customer, balance_transaction, application_fee, transfer, source_transfer,
+  on_behalf_of
+
+(Charge has no invoice field on the pinned API version — go the other way,
+via 'invoice get --expand-stripe ...'.)
+
+Connect: where a charge lives depends on how it was created.
+  direct charge       on the connected account — invisible from the platform.
+                      Needs --stripe-account acct_... (global).
+  destination charge  on the platform, with transfer_data.destination naming
+                      the connected account. No flag needed.
+Looking for a direct charge from the platform and finding nothing does NOT
+mean the charge does not exist. Check transfer_data.destination, on_behalf_of,
+and application_fee_amount to tell the two apart.
 
 Help: usage | help | -h | --help`
 

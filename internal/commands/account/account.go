@@ -37,6 +37,12 @@ Keys must start with sk_test_, sk_live_, rk_test_, or rk_live_ (restricted keys
 are supported). Use --form on macOS for an OS-native dialog (so the agent
 driving the CLI never sees the secret).
 
+Connect: this command manages local key aliases, but 'test' doubles as the
+Connect reachability probe. --stripe-account acct_... account test hits
+GET /v1/account through the header and returns the *connected* account — the
+cheapest way to confirm a platform key can actually read a given account
+before investigating anything else.
+
 Help: usage | help | -h | --help`
 
 // Run dispatches the account subcommand.
@@ -266,7 +272,10 @@ func runTest(ctx context.Context, opts *cli.GlobalOpts, args []string) error {
 		}
 		opts.Account = &acc
 		opts.AccountAlias = acc.Alias
-		opts.Client = agentstripe.NewClient(secret, "", opts.Timeout)
+		// opts.StripeAccount must ride along: without it the probe silently
+		// reports on the platform account while appearing to confirm the
+		// connected one — the worst failure for a scope-verifying command.
+		opts.Client = agentstripe.NewClient(secret, "", opts.StripeAccount, opts.Timeout)
 	}
 
 	acct, err := opts.Client.V1Accounts.Retrieve(ctx, &stripeapi.AccountRetrieveParams{})
@@ -289,10 +298,9 @@ func runTest(ctx context.Context, opts *cli.GlobalOpts, args []string) error {
 	if err != nil {
 		return err
 	}
-	return output.Emit(os.Stdout, output.Envelope{
-		Mode:       string(opts.Account.Mode),
-		Account:    opts.Account.Alias,
-		APIVersion: agentstripe.PinnedAPIVersion,
-		Data:       rendered,
-	})
+	// Routed through EnvelopeFor rather than a literal so the stripeAccount
+	// echo can never drift out of this command again.
+	env := cli.EnvelopeFor(opts)
+	env.Data = rendered
+	return output.Emit(os.Stdout, env)
 }

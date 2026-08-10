@@ -47,6 +47,12 @@ until --limit or exhausted.
 Common --expand-stripe paths:
   latest_charge, customer, payment_method, latest_charge.balance_transaction
 
+Connect: a direct-charge PaymentIntent lives on the connected account and
+needs --stripe-account acct_... (global); a destination-charge PI lives on the
+platform and carries transfer_data.destination plus application_fee_amount.
+on_behalf_of is a settlement-merchant field, NOT the same thing as the
+--stripe-account header.
+
 Help: usage | help | -h | --help`
 
 func Run(ctx context.Context, opts *cli.GlobalOpts, args []string) error {

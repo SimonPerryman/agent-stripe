@@ -16,6 +16,7 @@ Built on [stripe-go v85](https://github.com/stripe/stripe-go) · macOS & Linux
 - [Examples](#examples)
   - [Debug a failed charge](#debug-a-failed-charge)
   - [Reconcile a customer complaint](#reconcile-a-customer-complaint)
+  - [Trace a Connect payment across platform and connected account](#trace-a-connect-payment-across-platform-and-connected-account)
   - [Bulk export](#bulk-export)
   - [Discover fields without an API call](#discover-fields-without-an-api-call)
 - [Resources](#resources)
@@ -47,6 +48,7 @@ Requires Go 1.26+.
 - **Read-only at the HTTP boundary** — no `POST`/`DELETE` paths are importable from the client wrapper. Compile-time, not runtime.
 - **Live-mode gate** — `sk_live_…` keys require an explicit `--live` flag per invocation (configurable via `account.requireLiveFlag`).
 - **Mode echo** — every response carries `"mode": "test" | "live"` so agents can verify which environment they're reading.
+- **Account echo** — reads scoped to a connected account (`--stripe-account acct_…`) carry `"stripeAccount": "acct_…"` in the envelope. A platform charge and a connected-account charge are otherwise indistinguishable in the output; the field is omitted entirely when reading the platform account.
 - **Key redaction** — secrets stored in the OS keychain, redacted in all output and errors.
 - **Bounded output** — long strings truncated by default with a `{field}Length` companion (opt out per-field with `--expand`, or globally with `--full`). Lists capped at `list.maxResults` (default 100); use `--stream` for more.
 
@@ -103,6 +105,43 @@ agent-stripe webhook-endpoint for-event charge.succeeded
 agent-stripe webhook-endpoint for-event evt_xxx
 ```
 
+### Trace a Connect payment across platform and connected account
+
+Where an object lives depends on the charge type, and getting that wrong is the
+top failure mode: an agent looks for a direct charge from the platform, finds
+nothing, and concludes the charge doesn't exist.
+
+| Flow | Charge lives on | Flag needed |
+|---|---|---|
+| Direct charge | connected account | `--stripe-account acct_…` |
+| Destination charge | platform (`transfer_data.destination` names the account) | none |
+| Separate charges and transfers | charge on platform, `tr_…` to the account, joined by `transfer_group` | none for the charge |
+
+Following the money end to end — note the flag appearing partway through:
+
+```sh
+# 1. platform: the charge and the transfer it funded
+agent-stripe charge get ch_xxx --expand-stripe transfer
+agent-stripe transfer list --destination acct_xxx --limit 5
+
+# 2. is the account even able to receive money?
+agent-stripe connected-account get acct_xxx
+agent-stripe connected-account capabilities acct_xxx
+
+# 3. connected account: the funds arriving, and the payout they land in
+agent-stripe --stripe-account acct_xxx balance get
+agent-stripe --stripe-account acct_xxx balance transactions --type payment
+agent-stripe --stripe-account acct_xxx payout list --limit 5
+
+# 4. platform: what we earned on it
+agent-stripe application-fee list --charge ch_xxx
+```
+
+Fields that link the two views: `on_behalf_of`, `application_fee_amount`,
+`transfer_data.destination`, `source_transaction`, `transfer_group`.
+`on_behalf_of` is a field set at creation time — not the `Stripe-Account`
+header, and not something this read-only CLI can set.
+
 ### Bulk export
 
 Stream every charge since a timestamp, then process with `jq`:
@@ -130,17 +169,20 @@ Each resource supports `get` and `list`, plus `search` where Stripe does.
 | Checkout     | `checkout-session` |
 | Customers    | `customer`, `subscription`, `subscription-item`, `subscription-schedule`, `invoice`, `invoice-item` |
 | Catalog      | `product`, `price` |
+| Connect      | `connected-account` (with `capabilities`, `persons`, `external-accounts`), `application-fee` (with `refunds`) |
 | Audit        | `event` (with `--related <id>` to reconstruct an object's history) |
 | Webhooks     | `webhook-endpoint` (with `for-event <evt_or_type>` to match enabled_events) |
 | Meta         | `account`, `resource describe`, `usage` |
 
 Sub-resources live as subcommands of their parent: `balance transactions`,
-`setup-intent attempts <seti_id>`, `invoice lines <invoice_id>`.
+`setup-intent attempts <seti_id>`, `invoice lines <invoice_id>`,
+`connected-account capabilities <acct_id>`, `application-fee refunds <fee_id>`.
 
 Power features:
 
 - **`--related <id>`** on `event list` — reconstruct what happened to any object over time. The core agent-debugging primitive.
 - **`--expand-stripe`** — passthrough to Stripe's `expand[]` for nested resources in one round-trip.
+- **`--stripe-account acct_…`** — read a connected account's books through the Stripe-Account header. Works on every command, because the header is injected once at the transport. `--account` picks which *credential*; `--stripe-account` picks *whose books* it reads.
 - **`--stream`** — NDJSON for large lists/searches; paginates Stripe until exhausted. Pipes cleanly to `head`, `jq`, files.
 - **`resource describe <name>`** — emits field/type tree (reflected from `stripe-go`) without an API call. Answers "what can I expand on a subscription?".
 - **`agent-stripe usage`** and **`<command> usage`** — LLM-optimized docs at every level.
@@ -196,9 +238,27 @@ make test                                       # unit tests, no network
 STRIPE_TEST_KEY=sk_test_... make integration    # hits Stripe test mode
 ```
 
+The Connect integration tests need a test-mode connected account. Create one in
+the Dashboard (test mode → Connect → Accounts) and export its id; the tests skip
+cleanly when it's absent, so a plain non-Connect test key still passes:
+
+```sh
+STRIPE_TEST_KEY=sk_test_... STRIPE_TEST_CONNECTED_ACCOUNT=acct_... make integration
+```
+
+Point it at an account with outstanding requirements rather than a fully
+onboarded one — the disabled path exercises more branches (empty external
+accounts, unrequested capabilities, `charges_enabled: false`) than the happy
+path does.
+
+`make integration` refuses to run without `STRIPE_TEST_KEY` and passes
+`-count=1`. Both matter: with no key every test skips and still prints `ok`,
+and a cached re-run prints `(cached)` without executing anything — either way
+a no-op looks identical to a pass.
+
 ## Not included (by design)
 
-Writes (charges, refunds, mutations), webhook tunneling, card testing, Connect onboarding. Use the [official Stripe CLI](https://github.com/stripe/stripe-cli) for those.
+Writes (charges, refunds, mutations), webhook tunneling, card testing, Connect *onboarding* (`account_links`, `account_sessions` — all write flows). Use the [official Stripe CLI](https://github.com/stripe/stripe-cli) for those. Connect *reads* are supported: see [`--stripe-account`](#trace-a-connect-payment-across-platform-and-connected-account).
 
 ## License
 

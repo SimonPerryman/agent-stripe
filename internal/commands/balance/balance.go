@@ -39,6 +39,12 @@ until --limit or exhausted. get is a single snapshot — not streamable.
 Common --expand-stripe paths (transactions):
   source — fetches the originating object (charge, refund, payout, …)
 
+Connect: --stripe-account acct_... (global) switches both subcommands to the
+connected account's ledger. That is where "why hasn't this merchant been paid
+out?" is answered — the platform's balance says nothing about it. On a
+destination charge the connected account sees a "payment" balance
+transaction, not the platform's "charge".
+
 Help: usage | help | -h | --help`
 
 func Run(ctx context.Context, opts *cli.GlobalOpts, args []string) error {

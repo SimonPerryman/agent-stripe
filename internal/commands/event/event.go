@@ -44,6 +44,11 @@ Note: Stripe does not offer a Search API for events — use list with
 Streaming: pass --stream (top-level) on list to emit NDJSON over pages until
 --limit or exhausted. With --related, see the --related-specific behavior above.
 
+Connect: events are per-account. A connected account's events (including
+everything from its direct charges) are only visible with --stripe-account
+acct_... (global). If --related <id> comes back empty for an object you are
+sure exists, the wrong account is almost always why.
+
 Help: usage | help | -h | --help`
 
 func Run(ctx context.Context, opts *cli.GlobalOpts, args []string) error {
@@ -142,13 +147,10 @@ func runRelated(ctx context.Context, opts *cli.GlobalOpts, list *stripeapi.V1Lis
 	if err != nil {
 		return err
 	}
-	return output.Emit(os.Stdout, output.Envelope{
-		Mode:       string(opts.Account.Mode),
-		Account:    opts.Account.Alias,
-		APIVersion: agentstripe.PinnedAPIVersion,
-		Data:       rendered,
-		Scan:       &output.Scan{Scanned: scanned, Matched: len(matched), Truncated: truncated},
-	})
+	env := cli.EnvelopeFor(opts)
+	env.Data = rendered
+	env.Scan = &output.Scan{Scanned: scanned, Matched: len(matched), Truncated: truncated}
+	return output.Emit(os.Stdout, env)
 }
 
 func runRelatedStream(ctx context.Context, opts *cli.GlobalOpts, list *stripeapi.V1List[*stripeapi.Event], related string, maxScan, limit int, limitExplicit bool) error {

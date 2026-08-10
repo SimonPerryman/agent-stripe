@@ -154,7 +154,7 @@ See [TECH_STACK.md](TECH_STACK.md) for the source of truth. Highlights:
 ## Resolved design decisions
 
 1. **Search vs list**: keep separate. Stripe Search has different syntax and is eventually consistent (~1 min lag); list is immediately consistent with structured filters. Document the tradeoff in `usage`.
-2. **Connect accounts (`--on-behalf-of`)**: defer to v2. Not designing before someone asks.
+2. **Connect accounts (`--on-behalf-of`)**: defer to v2. Not designing before someone asks. — *Superseded 2026-08-10: picked up as part of v3. See [`plans/v3/01-connect.md`](../v3/01-connect.md). Note the mechanism is the `Stripe-Account` header, not `on_behalf_of`, which is a write-time field this CLI only reads.*
 3. **Event history by related object**: `event list --related <object_id>` filters the events log client-side by `data.object.id` to reconstruct what happened to an object. Pure GET, hard-capped at 500 events scanned (configurable via `list.maxEventScan`). Output includes `{ scanned, matched, truncated }` so the agent knows when to narrow the window. **Not** webhook resending — that's a write and stays out-of-scope.
 4. **Schema discovery (`resource describe <name>`)**: ship it. Reflect over `stripe-go` structs and emit a simplified field/type tree so agents can learn a resource's shape without spending a live API call.
 5. **Credential storage**: OS keychain via [`zalando/go-keyring`](https://github.com/zalando/go-keyring) (macOS Keychain / Linux Secret Service / Windows Credential Manager). Config file holds only `{alias, mode, keychain_ref}`. Secret never touches disk in plaintext.

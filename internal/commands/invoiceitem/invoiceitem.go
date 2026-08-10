@@ -36,6 +36,9 @@ No Search API for invoice items.
 Streaming: pass --stream (top-level) on list to emit NDJSON over pages until
 --limit or exhausted.
 
+Connect: invoice items belong to the account that owns the invoice, so a
+connected account's items need --stripe-account acct_... (global).
+
 Help: usage | help | -h | --help`
 
 func Run(ctx context.Context, opts *cli.GlobalOpts, args []string) error {

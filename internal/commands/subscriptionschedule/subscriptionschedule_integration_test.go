@@ -21,7 +21,7 @@ func TestIntegration_SubscriptionScheduleList(t *testing.T) {
 	}
 	opts := &cli.GlobalOpts{
 		Account: &config.Account{Alias: "it", Mode: config.ModeTest},
-		Client:  agentstripe.NewClient(key, "", 15*time.Second),
+		Client:  agentstripe.NewClient(key, "", "", 15*time.Second),
 	}
 	old := os.Stdout
 	r, w, _ := os.Pipe()

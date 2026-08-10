@@ -42,9 +42,10 @@ func EnvelopeFor(opts *GlobalOpts) output.Envelope {
 		alias = opts.Account.Alias
 	}
 	return output.Envelope{
-		Mode:       mode,
-		Account:    alias,
-		APIVersion: agentstripe.PinnedAPIVersion,
+		Mode:          mode,
+		Account:       alias,
+		StripeAccount: opts.StripeAccount,
+		APIVersion:    agentstripe.PinnedAPIVersion,
 	}
 }
 

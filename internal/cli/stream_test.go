@@ -163,7 +163,7 @@ func twoPageCustomerServer() (*httptest.Server, *int32) {
 func newStreamOpts(baseURL string) *GlobalOpts {
 	return &GlobalOpts{
 		Account: &config.Account{Alias: "test", Mode: config.ModeTest},
-		Client:  agentstripe.NewClient("sk_test_fake", baseURL, 5*time.Second),
+		Client:  agentstripe.NewClient("sk_test_fake", baseURL, "", 5*time.Second),
 	}
 }
 

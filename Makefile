@@ -8,8 +8,23 @@ build:
 test:
 	go test ./...
 
+# -count=1 disables the test cache. Without it a repeat run prints "(cached)"
+# for every package and executes nothing, which is indistinguishable from a
+# real pass. The env guard matters for the same reason: with no key every
+# integration test calls t.Skip and the package still prints "ok", so a
+# credential-less run looks exactly like a green one.
 integration:
-	go test -tags=integration ./...
+	@if [ -z "$$STRIPE_TEST_KEY" ]; then \
+		echo "STRIPE_TEST_KEY is not set."; \
+		echo "Every integration test would skip and still report ok — refusing to run a no-op."; \
+		echo "  STRIPE_TEST_KEY=sk_test_... STRIPE_TEST_CONNECTED_ACCOUNT=acct_... make integration"; \
+		exit 1; \
+	fi
+	@if [ -z "$$STRIPE_TEST_CONNECTED_ACCOUNT" ]; then \
+		echo "warning: STRIPE_TEST_CONNECTED_ACCOUNT unset — the Connect tests will skip."; \
+		echo "         Prefer an account with requirements past due; the happy path exercises fewer branches."; \
+	fi
+	go test -tags=integration -count=1 ./...
 
 fmt:
 	gofmt -w .
