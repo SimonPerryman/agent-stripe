@@ -154,8 +154,21 @@ otherwise.
     missing flags; adding two more would have widened the drift.
 
   Verified: `gofmt -l`, `go vet`, `go build`, `go test -race`,
-  `golangci-lint` all clean; integration tests typecheck under
-  `-tags=integration`. The live `--api-version` comparison in
-  `invoice_version_integration_test.go` has not been run against a real
-  account — it needs `STRIPE_TEST_KEY` and is the only test that proves the
-  header reaches the wire.
+  `golangci-lint` all clean.
+
+- 2026-08-10 — Confirmed against the wire (`make integration`, real test
+  account). The same invoice at `2022-11-15` carries exactly the 13 fields
+  this plan measured and the pinned `2026-04-22.dahlia` does not:
+
+      application_fee_amount, charge, discount, paid, paid_out_of_band,
+      payment_intent, quote, rendering_options, subscription,
+      subscription_details, tax, total_tax_amounts, transfer_data
+
+  A result the mocked tests cannot produce, so the `Stripe-Version` header
+  demonstrably reaches Stripe.
+
+  The second integration test measured something the plan had only asserted:
+  **at the pinned version the typed path drops `auto_advance` and
+  `customer_tax_ids`** — fields Stripe sends and stripe-go's Invoice struct
+  does not model. That is the standalone case for `--raw` independent of any
+  version override, now evidenced rather than argued.
