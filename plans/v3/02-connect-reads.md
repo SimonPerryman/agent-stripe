@@ -51,22 +51,38 @@ the item to do first.
 **Two parts, and the flag alone is useless.** A `Stripe-Version` request header
 changes what the server sends; it does not change what our marshalling keeps.
 v85's `Invoice` struct has no `ApplicationFeeAmount` field, so the value would
-be discarded on arrival however the request was framed.
+be discarded on arrival however the request was framed. Shipping the flag on
+its own would look like it worked while dropping the same fields — worse than
+not having it.
 
-That means:
+**Shape:** mirror `--stripe-account` exactly. A `--api-version` global flag,
+`AGENT_STRIPE_API_VERSION` env fallback, no config-file default, injected as a
+`Stripe-Version` header at the same transport chokepoint. The envelope already
+echoes `apiVersion`; it must report the *effective* version rather than the
+pinned constant, or the echo becomes a lie.
 
-- a `--api-version` flag to set the request header, **plus**
-- a raw-passthrough mode that emits Stripe's JSON without round-tripping it
-  through the SDK structs.
+**Raw mode is smaller than first assumed.** A spike (2026-08-10) confirmed the
+existing render pipeline needs no changes: `output.Render` already has a fast
+path for `map[string]any`, so unmarshalling Stripe's response body into a map
+instead of a struct feeds truncation, pruning, `--expand` and the `--stream`
+record path unmodified. `stripe.APIResponse` exposes `RawJSON []byte` on every
+response, and the SDK has a `RawRequest` backend, so the body is already
+reachable without new HTTP plumbing.
 
-The passthrough is the hard half, because it interacts with everything the
-envelope does downstream: truncation, empty-pruning, `--expand` leaf matching,
-and the `--stream` record path all currently assume a decoded map they can
-walk. Decide whether passthrough is a global mode or per-command, and what
-happens to the `apiVersion` echo when the two disagree.
+Measured blind spot, same invoice at two versions:
 
-Design this before writing it. It is the one item here that is not a params
-passthrough.
+    fields present at 2022-11-15 but absent at 2026-04-22.dahlia (13):
+      application_fee_amount, charge, discount, paid, paid_out_of_band,
+      payment_intent, quote, rendering_options, subscription,
+      subscription_details, tax, total_tax_amounts, transfer_data
+
+Remaining decisions, none of them large:
+- Global mode (`--raw`) or implied whenever `--api-version` is set? Implied is
+  friendlier; explicit is more predictable.
+- Cursor pagination reads `has_more`/`id` off the decoded map — fine for a map,
+  but the typed list helpers need a raw sibling.
+- `resource describe` reflects over pinned structs and cannot describe another
+  version's shape. Say so rather than pretending otherwise.
 
 ## Additive reads
 
@@ -146,3 +162,10 @@ sweep), and an envelope shape that attributes each row to its account. The
   marshalled through the pinned SDK's structs. Recorded that as one cause, with
   the same-invoice pinned/unpinned comparison that proves it, and noted that a
   `--api-version` flag without raw passthrough would fix none of them.
+- 2026-08-10 — Spiked raw passthrough. Downgraded from "architectural, needs
+  design" to a contained change: output.Render's map fast path means the whole
+  downstream pipeline works unmodified, and APIResponse.RawJSON already exposes
+  the body. Quantified the gap at 13 Invoice fields missing at the pinned
+  version versus 2022-11-15. The two-part requirement stands — the flag without
+  raw mode fixes nothing — but this is no longer the hardest item here.
+
