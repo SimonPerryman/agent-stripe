@@ -40,13 +40,13 @@ func CollectRawList[T any](ctx context.Context, list *stripeapi.V1List[T], maxRe
 	return items, false, nextCursor, nil
 }
 
+// toRawMap is ToRawMap plus the item's id, which the list/stream paths need
+// for the pagination cursor. It must delegate rather than re-implement the
+// marshal: when these were two separate JSON round-trips, a fix applied to
+// one silently missed `list` and `--stream`.
 func toRawMap(item any) (map[string]any, string, error) {
-	b, err := json.Marshal(item)
+	m, err := ToRawMap(item)
 	if err != nil {
-		return nil, "", err
-	}
-	var m map[string]any
-	if err := json.Unmarshal(b, &m); err != nil {
 		return nil, "", err
 	}
 	id, _ := m["id"].(string)
@@ -79,5 +79,44 @@ func ToRawMap(item any) (map[string]any, error) {
 	if err := json.Unmarshal(b, &m); err != nil {
 		return nil, err
 	}
+	restoreOmitemptyBools(item, m)
 	return m, nil
+}
+
+// restoreOmitemptyBools puts back response booleans that stripe-go tags
+// `omitempty`, which deletes them from the marshalled output when false.
+//
+// On Account that is actively harmful: `charges_enabled`, `payouts_enabled`
+// and `details_submitted` are the summary "is this account working?" fields,
+// and they disappear in exactly the case someone is investigating. A broken
+// account and an account whose fields Stripe never returned render
+// identically. We marshal the SDK struct rather than Stripe's wire JSON
+// (that is what buys us --expand-stripe and the truncation walk), so the tag
+// is ours to compensate for.
+//
+// Only Account is affected today — the response booleans on charge,
+// subscription, payout, refund, dispute and capability carry no `omitempty`.
+// Keep this list minimal and driven by an actual observed loss.
+func restoreOmitemptyBools(item any, m map[string]any) {
+	acct, ok := item.(*stripeapi.Account)
+	if !ok {
+		if v, isVal := item.(stripeapi.Account); isVal {
+			acct = &v
+		} else {
+			return
+		}
+	}
+	if acct == nil {
+		return
+	}
+	// Guard against an unexpanded `acct_…` reference, where the SDK parsed an
+	// id string into an otherwise-zero struct. Stamping charges_enabled:false
+	// on one of those would invent a signal rather than restore one; a real
+	// retrieval always carries object:"account".
+	if acct.Object != "account" {
+		return
+	}
+	m["charges_enabled"] = acct.ChargesEnabled
+	m["payouts_enabled"] = acct.PayoutsEnabled
+	m["details_submitted"] = acct.DetailsSubmitted
 }

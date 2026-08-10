@@ -2,9 +2,11 @@ package connectedaccount
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 
@@ -178,5 +180,86 @@ func TestRun_UnknownSubcommand(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "capabilties") {
 		t.Errorf("error should name the bad subcommand, got %v", err)
+	}
+}
+
+// End-to-end guard for the omitempty loss: a false charges_enabled must
+// survive ToRawMap *and* the output package's empty-pruning walk, all the way
+// to the emitted envelope. Asserting on ToRawMap alone would miss a later
+// regression in the renderer.
+func TestGet_FalseBooleansReachTheEnvelope(t *testing.T) {
+	body := `{"id":"acct_broken","object":"account","country":"GB",` +
+		`"charges_enabled":false,"payouts_enabled":false,"details_submitted":false,` +
+		`"requirements":{"disabled_reason":"requirements.past_due"}}`
+	srv, _ := recordingServer(t, body)
+
+	out := captureEnvelopeJSON(t, func() error {
+		return runGet(context.Background(), testutil.NewOpts(srv.URL), []string{"acct_broken"})
+	})
+	data, ok := out["data"].(map[string]any)
+	if !ok {
+		t.Fatalf("data not an object: %T", out["data"])
+	}
+	for _, k := range []string{"charges_enabled", "payouts_enabled", "details_submitted"} {
+		v, present := data[k]
+		if !present {
+			t.Errorf("%s missing from emitted envelope — a broken account renders as an unknown one", k)
+			continue
+		}
+		if v != false {
+			t.Errorf("%s = %v, want false", k, v)
+		}
+	}
+}
+
+// captureEnvelopeJSON runs fn with stdout piped and decodes the emitted line.
+func captureEnvelopeJSON(t *testing.T, fn func() error) map[string]any {
+	t.Helper()
+	old := os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stdout = w
+	done := make(chan []byte, 1)
+	go func() { b, _ := io.ReadAll(r); done <- b }()
+	runErr := fn()
+	_ = w.Close()
+	os.Stdout = old
+	body := <-done
+	if runErr != nil {
+		t.Fatalf("run: %v (out=%q)", runErr, body)
+	}
+	var env map[string]any
+	if err := json.Unmarshal(body, &env); err != nil {
+		t.Fatalf("decode envelope: %v (out=%q)", err, body)
+	}
+	return env
+}
+
+// The list path marshals through a different helper than get. When those were
+// two separate JSON round-trips the omitempty fix landed on get only, and
+// `list` — the command you would use to survey a whole portfolio for broken
+// accounts — kept dropping the field.
+func TestList_FalseBooleansReachTheEnvelope(t *testing.T) {
+	body := `{"object":"list","has_more":false,"url":"/v1/accounts","data":[` +
+		`{"id":"acct_broken","object":"account","charges_enabled":false,"payouts_enabled":false},` +
+		`{"id":"acct_ok","object":"account","charges_enabled":true,"payouts_enabled":true}]}`
+	srv, _ := recordingServer(t, body)
+
+	out := captureEnvelopeJSON(t, func() error {
+		return runList(context.Background(), testutil.NewOpts(srv.URL), nil)
+	})
+	rows, ok := out["data"].([]any)
+	if !ok || len(rows) != 2 {
+		t.Fatalf("expected 2 rows, got %v", out["data"])
+	}
+	broken := rows[0].(map[string]any)
+	if v, present := broken["charges_enabled"]; !present || v != false {
+		t.Errorf("broken account charges_enabled: present=%v value=%v, want present=true value=false", present, v)
+	}
+	healthy := rows[1].(map[string]any)
+	if healthy["charges_enabled"] != true {
+		t.Errorf("healthy account charges_enabled = %v, want true", healthy["charges_enabled"])
 	}
 }
