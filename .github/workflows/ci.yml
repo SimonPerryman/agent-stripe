@@ -32,6 +32,14 @@ jobs:
       - name: go vet
         run: go vet ./...
 
+      # Integration tests are behind `//go:build integration`, so `go test` and
+      # the vet above never compile them. Without this they can break — a
+      # changed function signature, a renamed helper — and CI stays green until
+      # someone runs `make integration` by hand. Vet cannot run them (no
+      # credentials in CI) but it does typecheck them.
+      - name: go vet (integration build tag)
+        run: go vet -tags=integration ./...
+
       - name: build
         run: go build ./...
 

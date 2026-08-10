@@ -76,9 +76,14 @@ Measured blind spot, same invoice at two versions:
       payment_intent, quote, rendering_options, subscription,
       subscription_details, tax, total_tax_amounts, transfer_data
 
-Remaining decisions, none of them large:
-- Global mode (`--raw`) or implied whenever `--api-version` is set? Implied is
-  friendlier; explicit is more predictable.
+**Decided:** ship `--raw` as a flag in its own right, and have `--api-version`
+imply it. Raw output is not only about version overrides — struct marshalling
+drops fields *at the pinned version too*, which is what caused the
+`external-accounts` payload loss and the silently-discarded expand paths in
+phase 13. Tying raw mode exclusively to `--api-version` would leave that
+unreachable.
+
+Still to work out during implementation, neither large:
 - Cursor pagination reads `has_more`/`id` off the decoded map — fine for a map,
   but the typed list helpers need a raw sibling.
 - `resource describe` reflects over pinned structs and cannot describe another
@@ -127,13 +132,17 @@ of scope, but *reading* one is how you distinguish "the clock has not advanced"
 from "the webhook did not fire" — currently indistinguishable, and every
 subscription-billing verification runs on a test clock.
 
-### 8. Multi-account fan-out (`--all-connected`)
+### 8. Multi-account fan-out (`--all-connected`) — deferred, do not start
 
 Portfolio-scale questions ("which of these accounts cannot accept payments")
-are a shell loop plus manual correlation today. Also architectural: it needs a
-concurrency limit, per-account error isolation (one 403 must not abort the
-sweep), and an envelope shape that attributes each row to its account. The
-`stripeAccount` echo already added is the building block.
+are a shell loop plus manual correlation today.
+
+**Deliberately not scheduled.** It is the only item here that has not been
+spiked, so its sizing is guesswork, and it needs real design: a concurrency
+limit, per-account error isolation (one 403 must not abort the sweep), and an
+envelope shape that attributes each row to its account. Build it when something
+concretely needs it, not on spec. The `stripeAccount` echo is the building
+block when that day comes.
 
 ## Out of scope
 
@@ -141,15 +150,24 @@ sweep), and an envelope shape that attributes each row to its account. The
 - Connect onboarding, `topup`, `country-spec`, v2 accounts — unchanged from
   phase 13.
 
+## Resolved decisions
+
+- **`--raw` is its own flag; `--api-version` implies it.** See §1 — the struct
+  path drops fields at the pinned version too, so raw output has standalone
+  value.
+- **`--expand-stripe` stays documented, not auto-corrected.** Phase 13 chose to
+  document the `data.` prefix rule rather than silently rewrite the caller's
+  input; Stripe's own 400 already names the correct path, and rewriting input
+  hides the rule rather than teaching it. Revisit only if it keeps tripping
+  people up.
+- **Order of work:** §1 first (the only correctness gap), then §2–§7 batched
+  into one PR when they are actually wanted, and §8 not at all until something
+  needs it.
+
 ## Open questions
 
-- Should `--expand-stripe` auto-prefix `data.` on list endpoints? Phase 13
-  documented the rule instead of applying it, on the grounds that silently
-  rewriting a user's input is worse than a clear 400 from Stripe (whose error
-  message already names the correct path). Worth revisiting if it keeps
-  tripping people up.
-- §1 and §8 may deserve their own plan files rather than sitting here — split
-  them out if either grows past a couple of sections.
+- §1 may deserve its own plan file if the raw-mode work grows past the section
+  above. §8 will need one if it is ever picked up.
 
 ## Log
 
@@ -168,4 +186,8 @@ sweep), and an envelope shape that attributes each row to its account. The
   the body. Quantified the gap at 13 Invoice fields missing at the pinned
   version versus 2022-11-15. The two-part requirement stands — the flag without
   raw mode fixes nothing — but this is no longer the hardest item here.
-
+- 2026-08-10 — Closed the open questions. `--raw` ships as its own flag with
+  `--api-version` implying it; `--expand-stripe` stays documented rather than
+  auto-corrected; §8 explicitly deferred as the one unspiked item. Also added
+  `go vet -tags=integration` to CI — the integration tests are behind a build
+  tag, so nothing in CI compiled them and they could break silently.
