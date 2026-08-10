@@ -38,7 +38,13 @@ type GlobalOpts struct {
 	ExpandStripe  []string // paths passed to Stripe API's expand[] (server-side)
 	Stream        bool     // NDJSON output: header line + one record per line, paginate until cap
 	RateLimit     float64  // requests/sec ceiling on --stream pacing; 0 = unlimited
-	Timeout       time.Duration
+	// Raw emits the response body Stripe sent instead of the marshalled SDK
+	// struct. Set directly by --raw, and implied by APIVersion.
+	Raw bool
+	// APIVersion overrides the Stripe-Version header on every request. Empty
+	// means the SDK's pinned version.
+	APIVersion string
+	Timeout    time.Duration
 
 	// Account is populated after resolution; nil for commands that don't
 	// require an account (e.g. `account add`, `account list`, `usage`).
@@ -64,22 +70,46 @@ type Registry struct {
 	Commands map[string]CommandSpec
 }
 
+// globalFlags holds the parsed values of the cross-command flags. It exists so
+// the definitions live in exactly one place: tests need to exercise global
+// parsing without invoking Dispatch (which calls os.Exit), and the hand-kept
+// mirror they used to build instead silently lacked every flag added after it.
+type globalFlags struct {
+	account       *string
+	stripeAccount *string
+	live          *bool
+	full          *bool
+	expand        *string
+	expandStripe  *string
+	stream        *bool
+	rateLimit     *float64
+	raw           *bool
+	apiVersion    *string
+	timeout       *time.Duration
+}
+
+func newGlobalFlags() (*flag.FlagSet, *globalFlags) {
+	fs := flag.NewFlagSet("agent-stripe", flag.ContinueOnError)
+	return fs, &globalFlags{
+		account:       fs.String("account", "", "account alias (overrides AGENT_STRIPE_ACCOUNT and config default)"),
+		stripeAccount: fs.String("stripe-account", "", "read a connected account's data via the Stripe-Account header (Connect platforms only; acct_...)"),
+		live:          fs.Bool("live", false, "allow operations against a live-mode account"),
+		full:          fs.Bool("full", false, "skip string truncation in output"),
+		expand:        fs.String("expand", "", "comma-separated fields/paths to skip truncation on; a token with a dot (e.g. lines.data.description) is matched as a path, bare names match any leaf"),
+		expandStripe:  fs.String("expand-stripe", "", "comma-separated Stripe API expand paths (server-side, e.g. customer,latest_charge)"),
+		stream:        fs.Bool("stream", false, "emit NDJSON: one header line then one record per line; paginates Stripe until exhausted or --limit reached"),
+		rateLimit:     fs.Float64("rate-limit", 15.0, "max Stripe requests/sec under --stream (0 = unlimited; Stripe's account-wide cap is 100/sec live, 25/sec test)"),
+		raw:           fs.Bool("raw", false, "emit the JSON Stripe sent instead of the SDK's response struct; shows fields the pinned SDK version cannot model"),
+		apiVersion:    fs.String("api-version", "", "request a different Stripe API version (e.g. 2022-11-15); implies --raw"),
+		timeout:       fs.Duration("timeout", 30*time.Second, "per-request timeout"),
+	}
+}
+
 // Dispatch parses global flags then dispatches to the right command. It does
 // not return — calls os.Exit on completion. (Keeps main.go tiny.)
 func Dispatch(ctx context.Context, reg *Registry, argv []string) {
-	fs := flag.NewFlagSet("agent-stripe", flag.ContinueOnError)
+	fs, g := newGlobalFlags()
 	fs.SetOutput(os.Stderr)
-	var (
-		account       = fs.String("account", "", "account alias (overrides AGENT_STRIPE_ACCOUNT and config default)")
-		stripeAccount = fs.String("stripe-account", "", "read a connected account's data via the Stripe-Account header (Connect platforms only; acct_...)")
-		live          = fs.Bool("live", false, "allow operations against a live-mode account")
-		full          = fs.Bool("full", false, "skip string truncation in output")
-		expand        = fs.String("expand", "", "comma-separated fields/paths to skip truncation on; a token with a dot (e.g. lines.data.description) is matched as a path, bare names match any leaf")
-		expandStripe  = fs.String("expand-stripe", "", "comma-separated Stripe API expand paths (server-side, e.g. customer,latest_charge)")
-		stream        = fs.Bool("stream", false, "emit NDJSON: one header line then one record per line; paginates Stripe until exhausted or --limit reached")
-		rateLimit     = fs.Float64("rate-limit", 15.0, "max Stripe requests/sec under --stream (0 = unlimited; Stripe's account-wide cap is 100/sec live, 25/sec test)")
-		timeout       = fs.Duration("timeout", 30*time.Second, "per-request timeout")
-	)
 	// Stop parsing at the first non-flag so subcommands can have their own flags.
 	if err := parseUntilSubcommand(fs, argv); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -119,8 +149,8 @@ func Dispatch(ctx context.Context, reg *Registry, argv []string) {
 		os.Exit(0)
 	}
 
-	leaves, paths := splitExpand(*expand)
-	connected := resolveStripeAccount(*stripeAccount)
+	leaves, paths := splitExpand(*g.expand)
+	connected := resolveStripeAccount(*g.stripeAccount)
 	// Validate before any client is constructed: passing a cus_/ch_ id here is
 	// the obvious agent mistake, and Stripe would answer it with an opaque 403.
 	if err := ValidateStripeAccount(connected); err != nil {
@@ -130,17 +160,26 @@ func Dispatch(ctx context.Context, reg *Registry, argv []string) {
 		}
 		output.Fail(err.Error(), output.FixableByAgent, 2)
 	}
+	version := resolveAPIVersion(*g.apiVersion)
+	if err := ValidateAPIVersion(version); err != nil {
+		failFromCommand(err, output.FixableByAgent, 2)
+	}
 	opts := &GlobalOpts{
-		AccountAlias:  resolveAccountAlias(*account),
+		AccountAlias:  resolveAccountAlias(*g.account),
 		StripeAccount: connected,
-		Live:          *live,
-		Full:          *full,
+		Live:          *g.live,
+		Full:          *g.full,
 		Expand:        leaves,
 		ExpandPaths:   paths,
-		ExpandStripe:  splitCSV(*expandStripe),
-		Stream:        *stream,
-		RateLimit:     *rateLimit,
-		Timeout:       *timeout,
+		ExpandStripe:  splitCSV(*g.expandStripe),
+		Stream:        *g.stream,
+		RateLimit:     *g.rateLimit,
+		// An override without raw output would look like it worked while the
+		// pinned structs dropped exactly the fields it was asked for, so the
+		// flag implies the other rather than offering a broken combination.
+		Raw:        *g.raw || version != "",
+		APIVersion: version,
+		Timeout:    *g.timeout,
 	}
 
 	// Account resolution + live-mode gate happens here, once, for every
@@ -168,7 +207,7 @@ func Dispatch(ctx context.Context, reg *Registry, argv []string) {
 	if err != nil {
 		output.Fail(fmt.Sprintf("reading secret for %q from keychain: %v", opts.Account.Alias, err), output.FixableByHuman, 2)
 	}
-	opts.Client = agentstripe.NewClient(secret, "", opts.StripeAccount, opts.Timeout)
+	opts.Client = agentstripe.NewClient(secret, "", opts.StripeAccount, opts.Timeout, agentstripe.WithAPIVersion(opts.APIVersion))
 
 	if err := spec.Run(ctx, opts, rest[1:]); err != nil {
 		var oe *output.Error
@@ -282,6 +321,42 @@ func ValidateStripeAccount(v string) error {
 	}
 }
 
+// resolveAPIVersion mirrors resolveStripeAccount's precedence: flag > env,
+// and deliberately no config-file default. The reasoning is the same, only
+// sharper: a saved version would silently change the shape of *every* field
+// of every response for every future invocation, including ones whose author
+// never saw the setting. The envelope's apiVersion echo is what makes the env
+// var tolerable.
+func resolveAPIVersion(flagVal string) string {
+	if flagVal != "" {
+		return flagVal
+	}
+	return os.Getenv("AGENT_STRIPE_API_VERSION")
+}
+
+// apiVersionPattern is Stripe's release-version shape: a date, optionally
+// suffixed with the release name (e.g. "2026-04-22.dahlia").
+var apiVersionPattern = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}(\.[a-z0-9_]+)?$`)
+
+// ValidateAPIVersion rejects a --api-version value that is not shaped like a
+// Stripe version. Empty is valid — it means the pinned version.
+//
+// Stripe answers an unknown version with a 400 whose message does not say
+// which parameter was wrong, so a typo like "2022-11-5" would come back as an
+// opaque failure. Checking the shape locally turns that into something an
+// agent can fix from the error alone. The *existence* of a version is still
+// Stripe's call — we only check the shape.
+func ValidateAPIVersion(v string) error {
+	if v == "" || apiVersionPattern.MatchString(v) {
+		return nil
+	}
+	return &output.Error{
+		Msg:  fmt.Sprintf("invalid --api-version %q: expected a Stripe version date like \"2022-11-15\", optionally with a release suffix like \"2026-04-22.dahlia\"", v),
+		Hint: "--api-version takes a dated Stripe release; see https://docs.stripe.com/upgrades#api-versions. Omit it to use the version this CLI is built against",
+		By:   output.FixableByAgent,
+	}
+}
+
 // needsAccount reports whether a command requires a resolved account before
 // it runs. `account` subcommands like `add`, `list`, `remove`, `set-default`,
 // `usage` work without one; `test` does need one.
@@ -385,8 +460,10 @@ func splitCSV(s string) []string {
 func printTopUsage(reg *Registry) {
 	var b strings.Builder
 	b.WriteString("agent-stripe — read-only Stripe CLI for AI agents\n\n")
-	b.WriteString("Usage:\n  agent-stripe [--account ALIAS] [--stripe-account acct_...] [--live] [--full] [--expand FIELDS] [--expand-stripe PATHS] [--stream] [--rate-limit N] [--timeout DUR] <command> [args]\n\n")
+	b.WriteString("Usage:\n  agent-stripe [--account ALIAS] [--stripe-account acct_...] [--live] [--full] [--expand FIELDS] [--expand-stripe PATHS] [--raw] [--api-version DATE] [--stream] [--rate-limit N] [--timeout DUR] <command> [args]\n\n")
 	b.WriteString("Flags are long-form only (no short aliases): use --account, not -a.\n\n")
+	b.WriteString("--raw emits the JSON Stripe sent instead of the SDK's response struct. Output\nis normally marshalled through structs pinned to " + agentstripe.PinnedAPIVersion + ", which silently\ndrop any field that version does not model — no error, indistinguishable from\nStripe not sending it. Reach for --raw when a field you expect is missing.\n\n")
+	b.WriteString("--api-version requests a different version (e.g. --api-version 2022-11-15) and\nimplies --raw. Use it to see what a consumer on an older version receives —\nwebhook endpoints pin their own version independently of this CLI. The\nenvelope's apiVersion reports the version actually requested.\n\n")
 	b.WriteString("--expand-stripe paths are relative to the object. On a *list* command they\nneed a \"data.\" prefix — `--expand-stripe data.customer`, not `customer` —\nbecause Stripe expands relative to the list wrapper.\n\n")
 	b.WriteString("--account picks which credential to use; --stripe-account picks whose books\nthat credential reads. Objects on a Connect direct charge live on the connected\naccount and are invisible without --stripe-account; destination charges live on\nthe platform and need no flag.\n\n")
 	b.WriteString("Commands:\n")
@@ -396,6 +473,27 @@ func printTopUsage(reg *Registry) {
 	}
 	b.WriteString("\nHelp: `agent-stripe <command> usage` (also: help, -h, --help) for command-specific help.\n")
 	fmt.Fprint(os.Stderr, b.String())
+}
+
+// RejectAPIVersion returns an error when --api-version is set on a command
+// that cannot honour it.
+//
+// `resource describe` is the case: it reflects over the pinned SDK's structs
+// and never calls Stripe, so it can only ever describe one version's shape.
+// Answering a request for another version with the pinned tree — and an
+// envelope echoing a version the output does not represent — would be a
+// silent wrong answer to precisely the question being asked.
+func RejectAPIVersion(opts *GlobalOpts, command string) error {
+	if opts == nil || opts.APIVersion == "" {
+		return nil
+	}
+	return &output.Error{
+		Msg: fmt.Sprintf(
+			"%s cannot describe API version %s: it reflects over the SDK structs this CLI is built against (%s) and makes no request",
+			command, opts.APIVersion, agentstripe.PinnedAPIVersion),
+		Hint: "drop --api-version here; to see another version's actual field set, request a real object with --api-version (which implies --raw)",
+		By:   output.FixableByAgent,
+	}
 }
 
 // RejectStripeAccount returns an error when --stripe-account is set on a

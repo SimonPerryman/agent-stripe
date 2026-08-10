@@ -38,6 +38,8 @@ internal/
 │   ├── client.go            # SDK init from resolved account, pins APIVersion
 │   ├── readonly.go          # rejects any non-GET method (single chokepoint)
 │   ├── connect.go           # Stripe-Account header injection (Connect reads)
+│   ├── version.go           # Stripe-Version header override (--api-version)
+│   ├── raw.go               # per-object response bodies (--raw)
 │   └── pagination.go        # auto-pagination + --stream NDJSON mode
 ├── config/
 │   ├── store.go             # os.UserConfigDir()/agent-stripe/config.json
@@ -52,6 +54,18 @@ internal/
 Account resolution order: `--account` flag > `AGENT_STRIPE_ACCOUNT` env > config default.
 
 **Two kinds of "account".** `--account` selects which *credential* to use (a local keychain alias). `--stripe-account acct_…` selects *whose books* that credential reads — the Connect `Stripe-Account` header, resolved `--stripe-account` flag > `AGENT_STRIPE_STRIPE_ACCOUNT` env, with **no config-file default** (a saved default would reintroduce silent scoping, the exact failure the mode echo exists to prevent). The header is injected once at the transport (`internal/stripe/connect.go`), composed *inside* the read-only transport so the read-only guarantee stays outermost. Every command inherits Connect support from that one chokepoint — do not add per-command `Params.StripeAccount` plumbing.
+
+**Two output modes.** By default a response is marshalled through the pinned
+SDK's structs, which silently drop any field that version does not model —
+no error, indistinguishable from Stripe not sending it. `--raw` decodes
+Stripe's response body instead (`stripe.APIResource.LastResponse.RawJSON`,
+which the SDK records per *item* on list and search pages too, so there is no
+separate raw pagination path). `--api-version` sets the `Stripe-Version`
+header at the transport, mirroring `--stripe-account`, and **implies `--raw`**
+— shipping it without would look like it worked while the pinned structs
+dropped exactly the fields it was asked for. The mode choice lives in
+`cli.EmitSingle` / `cli.RawMap`, never at a command's call site; command
+packages must not call `agentstripe.ToRawMap` directly.
 
 **Flags are long-form only.** Global and subcommand flags do not have single-letter short aliases (no `-a`, no `-e`). Long-form flags are self-documenting in transcripts, unambiguous for LLM-driven argv construction, and keep the single-letter namespace free. `usage`, `help`, `-h`, and `--help` all work at the top level and on every subcommand.
 
@@ -93,7 +107,7 @@ Account resolution order: `--account` flag > `AGENT_STRIPE_ACCOUNT` env > config
 ## Conventions — output
 
 - All output JSON to stdout. One JSON object per command (or one-per-line under `--stream`).
-- **Response envelope:** every successful response is `{ mode, account, apiVersion, data }`, plus `stripeAccount` when the read was scoped to a connected account (`omitempty`, so platform-scoped output is unchanged). Build envelopes with `cli.EnvelopeFor(opts)` — hand-built `output.Envelope{}` literals silently omit new fields and have drifted before. The Stripe payload always lives under `data` — never at the top level. `list`/`search` add a `page` sibling for pagination; `event list --related` adds a `scan` sibling.
+- **Response envelope:** every successful response is `{ mode, account, apiVersion, data }`, plus `stripeAccount` when the read was scoped to a connected account and `raw: true` under raw output (both `omitempty`, so default output is unchanged). `apiVersion` is the version the request was *made at*, not the pinned constant — build it with `cli.EffectiveAPIVersion`. Build envelopes with `cli.EnvelopeFor(opts)` — hand-built `output.Envelope{}` literals silently omit new fields and have drifted before. The Stripe payload always lives under `data` — never at the top level. `list`/`search` add a `page` sibling for pagination; `event list --related` adds a `scan` sibling.
 - Under `--stream`, emit the envelope once as the first NDJSON line (with `stream: true` and no `data`), then one record per line. Keeps the mode tag without repeating it on every record.
 - Long string fields (over `truncation.maxLength`, default 200) are truncated with a `…` suffix and a companion `{field}Length` key. Override per-call with `--full` or `--expand <fields>`.
 - Null / empty fields are pruned by default to reduce token cost in agent context windows.
@@ -101,7 +115,7 @@ Account resolution order: `--account` flag > `AGENT_STRIPE_ACCOUNT` env > config
 ## Conventions — secrets & env
 
 - API keys live in the OS keychain via `go-keyring`. The config file at `os.UserConfigDir()/agent-stripe/config.json` (mode `0600`) holds only `{alias, mode, keychain_ref}` — it literally cannot leak a key.
-- `.env` is not used by the CLI itself — config is the source of truth. Env vars override (`AGENT_STRIPE_ACCOUNT`, `AGENT_STRIPE_TIMEOUT`) but never carry the secret.
+- `.env` is not used by the CLI itself — config is the source of truth. Env vars override (`AGENT_STRIPE_ACCOUNT`, `AGENT_STRIPE_STRIPE_ACCOUNT`, `AGENT_STRIPE_API_VERSION`, `AGENT_STRIPE_TIMEOUT`) but never carry the secret. The last two deliberately have **no config-file default**: a saved value would silently rescope or reshape every future response, and the envelope echo is what makes an ambient default tolerable at all.
 - `--form` for credential entry: native OS dialog (osascript on macOS, zenity/kdialog on Linux, PowerShell on Windows). If no GUI session is available, exit with `fixableBy: "human"` and a hint to run on the user's local machine.
 
 ## Plans
@@ -168,5 +182,5 @@ golangci-lint run     # same linter CI runs (v2.12.2)
 
 One-liner: `test -z "$(gofmt -l .)" && go vet ./... && go build ./... && go test -race ./... && golangci-lint run`
 
-- For any change in `internal/stripe/readonly.go`, `internal/stripe/connect.go`, `internal/stripe/client.go`, or credential handling: also run integration tests with `STRIPE_TEST_KEY` set.
+- For any change in `internal/stripe/readonly.go`, `internal/stripe/connect.go`, `internal/stripe/version.go`, `internal/stripe/raw.go`, `internal/stripe/client.go`, or credential handling: also run integration tests with `STRIPE_TEST_KEY` set. The `--api-version` tests are the only ones that prove the header reaches the wire.
 - Never commit a real API key. `~/.config/agent-stripe/` and `*.local.*` are gitignored — keep it that way.

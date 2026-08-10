@@ -38,11 +38,45 @@ func CaptureStdout(t *testing.T) {
 	})
 }
 
+// WithCapturedStdout runs fn with os.Stdout redirected to a pipe and returns
+// everything it wrote. Use it when the assertion is about the response itself
+// rather than a request the test server saw; CaptureStdout only silences.
+func WithCapturedStdout(t *testing.T, fn func()) string {
+	t.Helper()
+	old := os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stdout = w
+	out := make(chan string, 1)
+	go func() {
+		b, _ := io.ReadAll(r)
+		out <- string(b)
+	}()
+	// Registered as cleanup as well as called below so a panicking test still
+	// puts stdout back rather than poisoning every later test in the package.
+	restore := func() { os.Stdout = old }
+	t.Cleanup(restore)
+	fn()
+	_ = w.Close()
+	restore()
+	return <-out
+}
+
 // NewOpts builds a *cli.GlobalOpts targeting a test httptest server. The
 // returned opts is populated with a deterministic test-mode account so list
 // commands can fill the envelope's mode/account fields without crashing.
 func NewOpts(baseURL string) *cli.GlobalOpts {
 	return NewOptsForAccount(baseURL, "")
+}
+
+// NewRawOpts is NewOpts with --raw in effect, so a command test can assert
+// that fields the pinned SDK structs cannot hold still reach the output.
+func NewRawOpts(baseURL string) *cli.GlobalOpts {
+	opts := NewOpts(baseURL)
+	opts.Raw = true
+	return opts
 }
 
 // NewOptsForAccount is NewOpts scoped to a connected account, so a command

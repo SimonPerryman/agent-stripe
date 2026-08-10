@@ -49,6 +49,7 @@ Requires Go 1.26+.
 - **Live-mode gate** — `sk_live_…` keys require an explicit `--live` flag per invocation (configurable via `account.requireLiveFlag`).
 - **Mode echo** — every response carries `"mode": "test" | "live"` so agents can verify which environment they're reading.
 - **Account echo** — reads scoped to a connected account (`--stripe-account acct_…`) carry `"stripeAccount": "acct_…"` in the envelope. A platform charge and a connected-account charge are otherwise indistinguishable in the output; the field is omitted entirely when reading the platform account.
+- **Version echo** — the envelope's `apiVersion` reports the version the request was actually made at, not the one the CLI was built against, so `--api-version` output cannot be mistaken for the default. Raw responses additionally carry `"raw": true`.
 - **Key redaction** — secrets stored in the OS keychain, redacted in all output and errors.
 - **Bounded output** — long strings truncated by default with a `{field}Length` companion (opt out per-field with `--expand`, or globally with `--full`). Lists capped at `list.maxResults` (default 100); use `--stream` for more.
 
@@ -183,6 +184,8 @@ Power features:
 - **`--related <id>`** on `event list` — reconstruct what happened to any object over time. The core agent-debugging primitive.
 - **`--expand-stripe`** — passthrough to Stripe's `expand[]` for nested resources in one round-trip.
 - **`--stripe-account acct_…`** — read a connected account's books through the Stripe-Account header. Works on every command, because the header is injected once at the transport. `--account` picks which *credential*; `--stripe-account` picks *whose books* it reads.
+- **`--raw`** — emit the JSON Stripe sent instead of the SDK's response struct. Output is normally marshalled through structs pinned to one API version, which silently drop any field that version does not model. Reach for `--raw` when a field you expect is missing.
+- **`--api-version 2022-11-15`** — request a different Stripe API version; implies `--raw`. Webhook endpoints pin their own version independently, so this is how you see what a consumer actually receives.
 - **`--stream`** — NDJSON for large lists/searches; paginates Stripe until exhausted. Pipes cleanly to `head`, `jq`, files.
 - **`resource describe <name>`** — emits field/type tree (reflected from `stripe-go`) without an API call. Answers "what can I expand on a subscription?".
 - **`agent-stripe usage`** and **`<command> usage`** — LLM-optimized docs at every level.

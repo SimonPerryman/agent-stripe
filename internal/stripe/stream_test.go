@@ -19,7 +19,7 @@ func TestStreamRawList_EmitsIncrementally(t *testing.T) {
 	client := NewClient("sk_test_fake", srv.URL, "", 5*time.Second)
 
 	var emitted []string
-	count, err := StreamRawList(context.Background(), client.V1Customers.List(context.Background(), &stripeapi.CustomerListParams{}), 0, func(m map[string]any) error {
+	count, err := StreamRawList(context.Background(), client.V1Customers.List(context.Background(), &stripeapi.CustomerListParams{}), 0, false, func(m map[string]any) error {
 		emitted = append(emitted, m["id"].(string))
 		return nil
 	})
@@ -41,7 +41,7 @@ func TestStreamRawList_MaxResultsStops(t *testing.T) {
 	srv, _ := newPaginatedCustomerServer(t, 50, 10)
 	client := NewClient("sk_test_fake", srv.URL, "", 5*time.Second)
 
-	count, err := StreamRawList(context.Background(), client.V1Customers.List(context.Background(), &stripeapi.CustomerListParams{}), 4, func(m map[string]any) error {
+	count, err := StreamRawList(context.Background(), client.V1Customers.List(context.Background(), &stripeapi.CustomerListParams{}), 4, false, func(m map[string]any) error {
 		return nil
 	})
 	if err != nil {
@@ -57,7 +57,7 @@ func TestStreamRawList_EmitErrorPropagates(t *testing.T) {
 	client := NewClient("sk_test_fake", srv.URL, "", 5*time.Second)
 
 	sentinel := errors.New("broken pipe")
-	count, err := StreamRawList(context.Background(), client.V1Customers.List(context.Background(), &stripeapi.CustomerListParams{}), 0, func(m map[string]any) error {
+	count, err := StreamRawList(context.Background(), client.V1Customers.List(context.Background(), &stripeapi.CustomerListParams{}), 0, false, func(m map[string]any) error {
 		return sentinel
 	})
 	if !errors.Is(err, sentinel) {
@@ -84,7 +84,7 @@ func TestStreamRawList_ServerErrorMidStream(t *testing.T) {
 	client := NewClient("sk_test_fake", srv.URL, "", 5*time.Second)
 
 	var emitted int
-	count, err := StreamRawList(context.Background(), client.V1Customers.List(context.Background(), &stripeapi.CustomerListParams{}), 0, func(m map[string]any) error {
+	count, err := StreamRawList(context.Background(), client.V1Customers.List(context.Background(), &stripeapi.CustomerListParams{}), 0, false, func(m map[string]any) error {
 		emitted++
 		return nil
 	})
@@ -104,7 +104,7 @@ func TestStreamRawList_ContextCancellation(t *testing.T) {
 	client := NewClient("sk_test_fake", srv.URL, "", 5*time.Second)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	_, err := StreamRawList(ctx, client.V1Customers.List(ctx, &stripeapi.CustomerListParams{}), 0, func(m map[string]any) error { return nil })
+	_, err := StreamRawList(ctx, client.V1Customers.List(ctx, &stripeapi.CustomerListParams{}), 0, false, func(m map[string]any) error { return nil })
 	if err == nil {
 		t.Fatal("expected error after context cancel")
 	}

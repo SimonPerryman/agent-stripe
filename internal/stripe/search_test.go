@@ -66,7 +66,7 @@ func TestCollectRawSearch_SinglePage(t *testing.T) {
 
 	params := &stripeapi.CustomerSearchParams{}
 	params.Query = "email:\"a@b.com\""
-	items, hasMore, cursor, err := CollectRawSearch(context.Background(), client.V1Customers.Search(context.Background(), params), 50)
+	items, hasMore, cursor, err := CollectRawSearch(context.Background(), client.V1Customers.Search(context.Background(), params), 50, false)
 	if err != nil {
 		t.Fatalf("CollectRawSearch: %v", err)
 	}
@@ -87,7 +87,7 @@ func TestCollectRawSearch_MultiPage(t *testing.T) {
 
 	params := &stripeapi.CustomerSearchParams{}
 	params.Query = "email:\"a@b.com\""
-	items, hasMore, _, err := CollectRawSearch(context.Background(), client.V1Customers.Search(context.Background(), params), 100)
+	items, hasMore, _, err := CollectRawSearch(context.Background(), client.V1Customers.Search(context.Background(), params), 100, false)
 	if err != nil {
 		t.Fatalf("CollectRawSearch: %v", err)
 	}
@@ -108,7 +108,7 @@ func TestCollectRawSearch_CapReturnsNextPage(t *testing.T) {
 
 	params := &stripeapi.CustomerSearchParams{}
 	params.Query = "x"
-	items, hasMore, cursor, err := CollectRawSearch(context.Background(), client.V1Customers.Search(context.Background(), params), 7)
+	items, hasMore, cursor, err := CollectRawSearch(context.Background(), client.V1Customers.Search(context.Background(), params), 7, false)
 	if err != nil {
 		t.Fatalf("CollectRawSearch: %v", err)
 	}
@@ -126,7 +126,7 @@ func TestCollectRawSearch_CapReturnsNextPage(t *testing.T) {
 func TestCollectRawSearch_Empty(t *testing.T) {
 	srv, _ := newPaginatedSearchServer(t, 0, 10)
 	client := NewClient("sk_test_fake", srv.URL, "", 5*time.Second)
-	items, hasMore, _, err := CollectRawSearch(context.Background(), client.V1Customers.Search(context.Background(), newSearchParams("x")), 0)
+	items, hasMore, _, err := CollectRawSearch(context.Background(), client.V1Customers.Search(context.Background(), newSearchParams("x")), 0, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -145,7 +145,7 @@ func TestCollectRawSearch_ServerError(t *testing.T) {
 	}))
 	defer srv.Close()
 	client := NewClient("sk_test_fake", srv.URL, "", 5*time.Second)
-	_, _, _, err := CollectRawSearch(context.Background(), client.V1Customers.Search(context.Background(), newSearchParams("x")), 10)
+	_, _, _, err := CollectRawSearch(context.Background(), client.V1Customers.Search(context.Background(), newSearchParams("x")), 10, false)
 	if err == nil {
 		t.Fatal("expected error to propagate")
 	}
@@ -156,7 +156,7 @@ func TestStreamRawSearch_EmitsIncrementally(t *testing.T) {
 	client := NewClient("sk_test_fake", srv.URL, "", 5*time.Second)
 
 	var emitted []string
-	count, err := StreamRawSearch(context.Background(), client.V1Customers.Search(context.Background(), newSearchParams("x")), 0, func(m map[string]any) error {
+	count, err := StreamRawSearch(context.Background(), client.V1Customers.Search(context.Background(), newSearchParams("x")), 0, false, func(m map[string]any) error {
 		emitted = append(emitted, m["id"].(string))
 		return nil
 	})
@@ -171,7 +171,7 @@ func TestStreamRawSearch_EmitsIncrementally(t *testing.T) {
 func TestStreamRawSearch_MaxResultsStops(t *testing.T) {
 	srv, _ := newPaginatedSearchServer(t, 50, 10)
 	client := NewClient("sk_test_fake", srv.URL, "", 5*time.Second)
-	count, err := StreamRawSearch(context.Background(), client.V1Customers.Search(context.Background(), newSearchParams("x")), 3, func(m map[string]any) error { return nil })
+	count, err := StreamRawSearch(context.Background(), client.V1Customers.Search(context.Background(), newSearchParams("x")), 3, false, func(m map[string]any) error { return nil })
 	if err != nil {
 		t.Fatalf("StreamRawSearch: %v", err)
 	}
@@ -184,7 +184,7 @@ func TestStreamRawSearch_EmitError(t *testing.T) {
 	srv, _ := newPaginatedSearchServer(t, 5, 5)
 	client := NewClient("sk_test_fake", srv.URL, "", 5*time.Second)
 	sentinel := errors.New("broken pipe")
-	_, err := StreamRawSearch(context.Background(), client.V1Customers.Search(context.Background(), newSearchParams("x")), 0, func(m map[string]any) error {
+	_, err := StreamRawSearch(context.Background(), client.V1Customers.Search(context.Background(), newSearchParams("x")), 0, false, func(m map[string]any) error {
 		return sentinel
 	})
 	if !errors.Is(err, sentinel) {
@@ -197,7 +197,7 @@ func TestStreamRawSearch_ContextCancellation(t *testing.T) {
 	client := NewClient("sk_test_fake", srv.URL, "", 5*time.Second)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	_, err := StreamRawSearch(ctx, client.V1Customers.Search(ctx, newSearchParams("x")), 0, func(m map[string]any) error { return nil })
+	_, err := StreamRawSearch(ctx, client.V1Customers.Search(ctx, newSearchParams("x")), 0, false, func(m map[string]any) error { return nil })
 	if err == nil {
 		t.Fatal("expected error after context cancel")
 	}

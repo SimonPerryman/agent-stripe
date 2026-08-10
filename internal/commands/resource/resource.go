@@ -29,6 +29,14 @@ each resource's --expand-stripe recommendation. Use this when you want to
 know "what can I expand?" or "what fields exist on a subscription?" before
 spending an API call.
 
+Scope: describe can only ever show ONE version's shape — the one this CLI is
+built against, reported as apiVersion in the envelope. It reflects over the
+SDK's structs, so --api-version is rejected here rather than answered with a
+tree that does not represent it, and --raw has nothing to apply to. Those
+structs are also narrower than the wire: a field Stripe sends that this SDK
+version does not model will not appear below. To see what an object actually
+carries, fetch a real one with --raw.
+
 Help: usage | help | -h | --help`
 
 func Run(ctx context.Context, opts *cli.GlobalOpts, args []string) error {

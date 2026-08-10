@@ -1,6 +1,6 @@
 # Phase 15 — API version override and raw output
 
-Status: draft
+Status: done
 
 ## Goal
 
@@ -75,11 +75,14 @@ actually requested, or the echo becomes a lie — the same reasoning that put
 since raw output is a different contract (no pruning guarantees about which
 fields the SDK would have modelled).
 
-### 4. Raw sibling for the pagination helpers
+### 4. Raw sibling for the pagination helpers — ~~needed~~ not needed
 
-`CollectRawList` / `StreamRawList` drain a typed `*V1List[T]`. Raw mode has no
-typed list, so cursor handling (`has_more`, last `id`) needs to read off the
-decoded map. Contained, but it is the one piece of real plumbing here.
+**Dropped during implementation.** The premise was wrong: stripe-go's list and
+search iterators re-split each page's `data` array and hand every item its own
+recorded body (`maybeAddLastResponseV1`, `iter.go`). So raw mode still drains
+the typed `*V1List[T]` — `has_more` comes off `list.Meta()` as before and the
+cursor `id` reads the same off either map. `CollectRawList` / `StreamRawList`
+took a `raw bool` and nothing else changed. There is no raw pagination path.
 
 ### 5. `resource describe` — say what it cannot do
 
@@ -121,3 +124,51 @@ otherwise.
 
 - 2026-08-10 — Split from `02-connect-reads.md` §1. Spike findings, the
   13-field measurement and the resolved decisions carried over intact.
+- 2026-08-10 — Implemented. Deviations from the plan as written, all
+  deliberate:
+
+  - **§4 dropped entirely** (see above) — the SDK already records a per-item
+    response body, so raw mode needs no pagination plumbing at all. This was
+    the plan's "one piece of real plumbing"; it turned out not to exist.
+  - **The mode choice moved off the call sites.** `ToRawMap` grew a `raw`
+    parameter, but the 26 `get` commands no longer call it: they hand the SDK
+    value to `cli.EmitSingle`, which decides. A new command physically cannot
+    forget `--raw` — the same reasoning that put envelope construction behind
+    `cli.EnvelopeFor`.
+  - **Raw on a value with no recorded body is an error, not a silent
+    fallback.** Returning the struct-marshalled map would hand back output
+    that looks raw and is not, which is the failure this whole phase exists to
+    close. The one place it would have bitten — `connected-account
+    external-accounts`, whose items are projected off the parent account —
+    now sources them from the parent's raw body instead. That is the
+    external-accounts payload loss from phase 13, fixed rather than
+    side-stepped.
+  - **§5 went further than "say what it cannot do".** `resource describe`
+    *rejects* `--api-version` (`cli.RejectAPIVersion`, mirroring
+    `RejectStripeAccount`) rather than answering with a pinned tree under an
+    envelope echoing the requested version. A silent wrong answer is worse
+    than an error, and this is the same shape as the platform-scoped guard.
+    Its usage now also states that the tree is narrower than the wire.
+  - **Global flag definitions extracted** into `newGlobalFlags`. The tests
+    had been building a hand-kept mirror of the flag set, which was already
+    missing flags; adding two more would have widened the drift.
+
+  Verified: `gofmt -l`, `go vet`, `go build`, `go test -race`,
+  `golangci-lint` all clean.
+
+- 2026-08-10 — Confirmed against the wire (`make integration`, real test
+  account). The same invoice at `2022-11-15` carries exactly the 13 fields
+  this plan measured and the pinned `2026-04-22.dahlia` does not:
+
+      application_fee_amount, charge, discount, paid, paid_out_of_band,
+      payment_intent, quote, rendering_options, subscription,
+      subscription_details, tax, total_tax_amounts, transfer_data
+
+  A result the mocked tests cannot produce, so the `Stripe-Version` header
+  demonstrably reaches Stripe.
+
+  The second integration test measured something the plan had only asserted:
+  **at the pinned version the typed path drops `auto_advance` and
+  `customer_tax_ids`** — fields Stripe sends and stripe-go's Invoice struct
+  does not model. That is the standalone case for `--raw` independent of any
+  version override, now evidenced rather than argued.

@@ -126,7 +126,7 @@ func runRelated(ctx context.Context, opts *cli.GlobalOpts, list *stripeapi.V1Lis
 			return iterErr
 		}
 		scanned++
-		m, err := agentstripe.ToRawMap(evt)
+		m, err := cli.RawMap(opts, evt)
 		if err != nil {
 			return err
 		}
@@ -168,7 +168,7 @@ func runRelatedStream(ctx context.Context, opts *cli.GlobalOpts, list *stripeapi
 			return iterErr
 		}
 		scanned++
-		m, err := agentstripe.ToRawMap(evt)
+		m, err := cli.RawMap(opts, evt)
 		if err != nil {
 			return err
 		}

@@ -134,6 +134,9 @@ func runDescribe(_ context.Context, opts *cli.GlobalOpts, args []string) error {
 		return errors.New("usage: resource describe <name> [--depth N]")
 	}
 	name := fs.Arg(0)
+	if err := cli.RejectAPIVersion(opts, "resource describe"); err != nil {
+		return err
+	}
 	z, ok := resourceRegistry[name]
 	if !ok {
 		known := knownResources()
@@ -155,6 +158,10 @@ func runDescribe(_ context.Context, opts *cli.GlobalOpts, args []string) error {
 		"fields":      tree,
 		"expandPaths": expandPathsByResource[name],
 	}
+	// Deliberately the pinned constant rather than cli.EffectiveAPIVersion:
+	// this tree *is* the pinned SDK's shape, and no override can change that.
+	// RejectAPIVersion above is what keeps the echo from ever disagreeing
+	// with what the caller asked for.
 	return output.Emit(os.Stdout, output.Envelope{
 		Mode:       safeMode(opts),
 		Account:    safeAccount(opts),
