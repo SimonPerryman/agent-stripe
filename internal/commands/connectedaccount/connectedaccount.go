@@ -25,7 +25,8 @@ Subcommands:
   list [--created-gt T] [--created-lt T]
        [--limit N] [--starting-after ACCT]  List your connected accounts
   capabilities <acct_id>                    Per-capability status (why an
-                                            account can't charge or pay out)
+                                            account can't charge or pay out).
+                                            Not paginated — no --limit.
   persons <acct_id> [--relationship-owner]
           [--relationship-director]         People on the account (KYC)
   external-accounts <acct_id>               Bank accounts/cards payouts go to
@@ -49,8 +50,8 @@ Note: Stripe offers no Search API for accounts — use list with
 --created-gt/lt. external-accounts has no dedicated endpoint either; it is a
 get with expand[]=external_accounts under the hood.
 
-Streaming: pass --stream (top-level) on list, capabilities, or persons to emit
-NDJSON over pages until --limit or exhausted.
+Streaming: pass --stream (top-level) on list or persons to emit NDJSON over
+pages until --limit or exhausted.
 
 Recommended --expand-stripe paths:
   external_accounts, settings, requirements
@@ -127,25 +128,18 @@ func runList(ctx context.Context, opts *cli.GlobalOpts, args []string) error {
 	return cli.RunListOrStream(ctx, opts, opts.Client.V1Accounts.List(ctx, params), *limit, cli.LimitExplicit(fs))
 }
 
+// runCapabilities lists an account's capabilities. Unlike every other list in
+// this CLI the endpoint is NOT paginated: CapabilityListParams embeds
+// ListParams (so Limit compiles), but /v1/accounts/{id}/capabilities rejects
+// `limit` with parameter_unknown. An account has a handful of capabilities, so
+// there is nothing to page through — no --limit or --starting-after is offered.
 func runCapabilities(ctx context.Context, opts *cli.GlobalOpts, args []string) error {
-	if len(args) == 0 {
-		return errors.New("usage: connected-account capabilities <acct_id> [--limit N]")
+	if len(args) != 1 {
+		return errors.New("usage: connected-account capabilities <acct_id>")
 	}
-	acctID := args[0]
-	fs := flag.NewFlagSet("connected-account capabilities", flag.ContinueOnError)
-	fs.SetOutput(io.Discard)
-	limit := fs.Int("limit", agentstripe.DefaultMaxResults, "max items to return (cap)")
-	if err := fs.Parse(args[1:]); err != nil {
-		return err
-	}
-
-	params := &stripeapi.CapabilityListParams{Account: stripeapi.String(acctID)}
-	params.Limit = stripeapi.Int64(int64(min(*limit, agentstripe.MaxPageSize)))
+	params := &stripeapi.CapabilityListParams{Account: stripeapi.String(args[0])}
 	params.Expand = agentstripe.ExpandSlice(opts.ExpandStripe)
-	if opts.Stream {
-		params.Limit = stripeapi.Int64(agentstripe.MaxPageSize)
-	}
-	return cli.RunListOrStream(ctx, opts, opts.Client.V1Capabilities.List(ctx, params), *limit, cli.LimitExplicit(fs))
+	return cli.RunListOrStream(ctx, opts, opts.Client.V1Capabilities.List(ctx, params), agentstripe.DefaultMaxResults, false)
 }
 
 func runPersons(ctx context.Context, opts *cli.GlobalOpts, args []string) error {
@@ -201,32 +195,47 @@ func runExternalAccounts(ctx context.Context, opts *cli.GlobalOpts, args []strin
 	if err != nil {
 		return err
 	}
-	m, err := agentstripe.ToRawMap(acct)
+	items, err := externalAccountItems(acct.ExternalAccounts)
 	if err != nil {
 		return err
 	}
-	items, hasMore := externalAccountItems(m)
+	hasMore := acct.ExternalAccounts != nil && acct.ExternalAccounts.HasMore
 	return cli.EmitList(opts, items, hasMore, "")
 }
 
-// externalAccountItems pulls the nested {object:list, data:[…], has_more} out
-// of the raw account map. A missing or oddly-shaped field yields an empty
-// list rather than an error: an account with no external account attached is
-// a perfectly good answer to "where do payouts go" (nowhere, yet).
-func externalAccountItems(acct map[string]any) ([]map[string]any, bool) {
-	nested, ok := acct["external_accounts"].(map[string]any)
-	if !ok {
-		return nil, false
+// externalAccountItems unwraps the polymorphic list into raw maps.
+//
+// It must reach through AccountExternalAccount to the concrete BankAccount or
+// Card: that wrapper tags both payloads `json:"-"`, so marshalling the account
+// object (or the wrapper itself) yields nothing but {id, object} — an answer
+// that tells you a payout destination exists but not where it goes, which is
+// the entire question this subcommand exists to answer.
+//
+// A nil list is not an error: an account with nothing attached is a perfectly
+// good answer to "where do payouts go" (nowhere, yet).
+func externalAccountItems(list *stripeapi.AccountExternalAccountList) ([]map[string]any, error) {
+	if list == nil {
+		return nil, nil
 	}
-	raw, _ := nested["data"].([]any)
-	items := make([]map[string]any, 0, len(raw))
-	for _, r := range raw {
-		if m, ok := r.(map[string]any); ok {
-			items = append(items, m)
+	items := make([]map[string]any, 0, len(list.Data))
+	for _, ea := range list.Data {
+		if ea == nil {
+			continue
 		}
+		var concrete any = ea // fallback: unexpanded or a type the SDK doesn't model
+		switch {
+		case ea.BankAccount != nil:
+			concrete = ea.BankAccount
+		case ea.Card != nil:
+			concrete = ea.Card
+		}
+		m, err := agentstripe.ToRawMap(concrete)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, m)
 	}
-	hasMore, _ := nested["has_more"].(bool)
-	return items, hasMore
+	return items, nil
 }
 
 func createdRange(gt, lt int64) *stripeapi.RangeQueryParams {

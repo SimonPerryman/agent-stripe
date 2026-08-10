@@ -9,6 +9,8 @@ import (
 	"testing"
 
 	"github.com/simonperryman/agent-stripe/internal/testutil"
+
+	stripeapi "github.com/stripe/stripe-go/v85"
 )
 
 // recordingServer captures the path and query of the last request so tests can
@@ -58,6 +60,11 @@ func TestCapabilities_PathIncludesAccount(t *testing.T) {
 	}
 	if last.URL.Path != "/v1/accounts/acct_1/capabilities" {
 		t.Errorf("path = %q", last.URL.Path)
+	}
+	// The endpoint is not paginated and rejects `limit` with
+	// parameter_unknown, so we must not send one.
+	if raw := last.URL.RawQuery; strings.Contains(raw, "limit") {
+		t.Errorf("capabilities must not send limit, got query %q", raw)
 	}
 }
 
@@ -110,23 +117,38 @@ func TestExternalAccounts_ExpandsAndProjects(t *testing.T) {
 	}
 }
 
-func TestExternalAccountItems(t *testing.T) {
-	in := map[string]any{"external_accounts": map[string]any{
-		"data":     []any{map[string]any{"id": "ba_1"}, map[string]any{"id": "card_1"}},
-		"has_more": true,
-	}}
-	items, hasMore := externalAccountItems(in)
-	if len(items) != 2 || items[0]["id"] != "ba_1" {
-		t.Errorf("items = %v", items)
+// The wrapper tags BankAccount/Card `json:"-"`, so marshalling it directly
+// loses everything but {id, object}. Regression guard: the concrete object's
+// fields must survive.
+func TestExternalAccountItems_UnwrapsConcreteTypes(t *testing.T) {
+	list := &stripeapi.AccountExternalAccountList{
+		Data: []*stripeapi.AccountExternalAccount{
+			{ID: "ba_1", Type: stripeapi.AccountExternalAccountTypeBankAccount,
+				BankAccount: &stripeapi.BankAccount{ID: "ba_1", BankName: "Test Bank", Last4: "6789"}},
+			{ID: "card_1", Type: stripeapi.AccountExternalAccountTypeCard,
+				Card: &stripeapi.Card{ID: "card_1", Brand: stripeapi.CardBrandVisa, Last4: "4242"}},
+		},
 	}
-	if !hasMore {
-		t.Error("hasMore should propagate from the nested list")
+	items, err := externalAccountItems(list)
+	if err != nil {
+		t.Fatalf("externalAccountItems: %v", err)
 	}
+	if len(items) != 2 {
+		t.Fatalf("expected 2 items, got %d", len(items))
+	}
+	if items[0]["bank_name"] != "Test Bank" || items[0]["last4"] != "6789" {
+		t.Errorf("bank account fields lost in round-trip: %v", items[0])
+	}
+	if items[1]["brand"] != "Visa" || items[1]["last4"] != "4242" {
+		t.Errorf("card fields lost in round-trip: %v", items[1])
+	}
+}
 
+func TestExternalAccountItems_EmptyIsNotAnError(t *testing.T) {
 	// An account with nothing attached is a valid answer, not an error.
-	items, hasMore = externalAccountItems(map[string]any{"id": "acct_1"})
-	if len(items) != 0 || hasMore {
-		t.Errorf("expected empty result for missing field, got %v / %v", items, hasMore)
+	items, err := externalAccountItems(nil)
+	if err != nil || len(items) != 0 {
+		t.Errorf("expected empty result for nil list, got %v / %v", items, err)
 	}
 }
 
