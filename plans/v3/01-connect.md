@@ -353,3 +353,14 @@ is global, there is no per-command test matrix.
     header reaches the wire without hand-building a client.
   - §7 `application-fee` also gained an integration sweep (not specified, but
     it matches every other command package).
+- 2026-08-10 — Review of the shipped PR found four defects, all fixed on the
+  same branch: (a) `Account`'s `charges_enabled`/`payouts_enabled`/
+  `details_submitted` were deleted from output whenever false (stripe-go tags
+  them `omitempty`), making a broken account indistinguishable from an
+  unreported one — the exact case §6's verification chain exists to diagnose;
+  (b) `--stripe-account` was accepted on the platform-scoped commands and
+  silently returned empty results; (c) `connected-account capabilities` sent an
+  unsupported `limit` and 400'd on every call; (d) `external-accounts` returned
+  only `{id, object}`. Reads that phase 13 did not cover are collected in
+  [`02-connect-reads.md`](02-connect-reads.md).
+

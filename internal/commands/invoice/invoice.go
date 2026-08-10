@@ -59,6 +59,13 @@ nowhere to put it — you get null with no error. Use the paths above.
 For 'invoice lines', the most useful --expand-stripe is
 data.pricing.price_details.price — "what did this customer actually pay for".
 
+Connect fees: application_fee_amount is not readable from the invoice — the
+pinned SDK's Invoice response type has no such field, so it is dropped even if
+Stripe sends it. To find what the platform earned on an invoice, hop to the
+payment: invoice get --expand-stripe ... for the charge id, then
+'charge get ch_... --expand-stripe application_fee', or
+'application-fee list --charge ch_...'.
+
 Note: invoice preview (formerly upcoming) is not exposed in v1. The endpoint
 moved to POST /v1/invoices/create_preview in the pinned API version and the
 read-only chokepoint blocks POST; this is out of scope for v1 (read-only) and
