@@ -387,6 +387,7 @@ func printTopUsage(reg *Registry) {
 	b.WriteString("agent-stripe — read-only Stripe CLI for AI agents\n\n")
 	b.WriteString("Usage:\n  agent-stripe [--account ALIAS] [--stripe-account acct_...] [--live] [--full] [--expand FIELDS] [--expand-stripe PATHS] [--stream] [--rate-limit N] [--timeout DUR] <command> [args]\n\n")
 	b.WriteString("Flags are long-form only (no short aliases): use --account, not -a.\n\n")
+	b.WriteString("--expand-stripe paths are relative to the object. On a *list* command they\nneed a \"data.\" prefix — `--expand-stripe data.customer`, not `customer` —\nbecause Stripe expands relative to the list wrapper.\n\n")
 	b.WriteString("--account picks which credential to use; --stripe-account picks whose books\nthat credential reads. Objects on a Connect direct charge live on the connected\naccount and are invisible without --stripe-account; destination charges live on\nthe platform and need no flag.\n\n")
 	b.WriteString("Commands:\n")
 	for name, spec := range reg.Commands {

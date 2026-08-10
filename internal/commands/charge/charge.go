@@ -41,7 +41,11 @@ Streaming: pass --stream (top-level) on list/search to emit NDJSON over pages
 until --limit or exhausted.
 
 Common --expand-stripe paths:
-  customer, balance_transaction, application_fee, transfer, invoice
+  customer, balance_transaction, application_fee, transfer, source_transfer,
+  on_behalf_of
+
+(Charge has no invoice field on the pinned API version — go the other way,
+via 'invoice get --expand-stripe ...'.)
 
 Connect: where a charge lives depends on how it was created.
   direct charge       on the connected account — invisible from the platform.

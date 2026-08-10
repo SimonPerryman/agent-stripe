@@ -59,9 +59,19 @@ var resourceRegistry = map[string]any{
 // expandPathsByResource mirrors the "Recommended --expand-stripe paths"
 // curation each command's Usage block calls out. Kept in sync by hand — these
 // are opinions, not reflections.
+//
+// Every path here is checked against the pinned SDK's response structs by
+// TestExpandPathsResolveAgainstSDKStructs. That matters because Stripe will
+// happily accept an expand path for a field the SDK no longer models, return
+// the data, and let our marshalling drop it — the caller sees null with no
+// error. Do not add a path the test cannot resolve.
+//
+// On *list* endpoints these paths need a "data." prefix (Stripe expands
+// relative to the list wrapper): `--expand-stripe data.customer`, not
+// `customer`.
 var expandPathsByResource = map[string][]string{
 	"customer":              {"default_source", "subscriptions"},
-	"charge":                {"customer", "balance_transaction", "application_fee", "transfer", "invoice"},
+	"charge":                {"customer", "balance_transaction", "application_fee", "transfer", "source_transfer", "on_behalf_of"},
 	"payment-intent":        {"latest_charge", "customer", "payment_method", "latest_charge.balance_transaction"},
 	"refund":                {"charge", "balance_transaction", "payment_intent"},
 	"dispute":               {"charge", "payment_intent", "balance_transactions"},
@@ -72,9 +82,9 @@ var expandPathsByResource = map[string][]string{
 	"subscription":          {"customer", "latest_invoice", "default_payment_method", "items.data.price.product", "pending_setup_intent"},
 	"subscription-item":     {"price.product"},
 	"subscription-schedule": {"subscription", "customer", "phases.items.price.product"},
-	"invoice":               {"customer", "subscription", "payment_intent", "charge", "lines.data.price.product"},
-	"invoice-item":          {"customer", "invoice", "price.product"},
-	"invoice-line-item":     {"price.product"},
+	"invoice":               {"customer", "parent.subscription_details.subscription", "lines.data.pricing.price_details.price"},
+	"invoice-item":          {"customer", "invoice", "pricing.price_details.price"},
+	"invoice-line-item":     {"pricing.price_details.price"},
 	"product":               {"default_price"},
 	"price":                 {"product"},
 	"payment-method":        {"customer"},

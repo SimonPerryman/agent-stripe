@@ -100,3 +100,21 @@ func TestIntegration_RejectsStripeAccount(t *testing.T) {
 		t.Fatal("expected connected-account list to reject --stripe-account")
 	}
 }
+
+// TestIntegration_ExpandOnListNeedsDataPrefix pins the one piece of
+// --expand-stripe behaviour no unit test can reach: Stripe expands relative to
+// the list wrapper, so a path that is correct on `get` is a 400 on `list`.
+// Every "recommended expand path" we publish is written for `get`.
+func TestIntegration_ExpandOnListNeedsDataPrefix(t *testing.T) {
+	opts := integrationOpts(t)
+
+	opts.ExpandStripe = []string{"external_accounts"}
+	if err := runList(context.Background(), opts, []string{"--limit", "1"}); err == nil {
+		t.Error("expected a bare expand path to be rejected on a list endpoint")
+	}
+
+	opts.ExpandStripe = []string{"data.external_accounts"}
+	captureEnvelope(t, func() error {
+		return runList(context.Background(), opts, []string{"--limit", "1"})
+	})
+}

@@ -53,8 +53,11 @@ get with expand[]=external_accounts under the hood.
 Streaming: pass --stream (top-level) on list or persons to emit NDJSON over
 pages until --limit or exhausted.
 
-Recommended --expand-stripe paths:
+Recommended --expand-stripe paths (on get):
   external_accounts, settings, requirements
+
+On list, prefix them with "data." — Stripe expands relative to the list
+wrapper, so a bare path is rejected with a 400.
 
 Help: usage | help | -h | --help`
 
