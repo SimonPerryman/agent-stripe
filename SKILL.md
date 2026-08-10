@@ -43,7 +43,7 @@ application-fee get | list | refunds                     # fee_…
 resource    describe <name> [--depth N]                  # shape discovery, no API call
 ```
 
-Global flags: `--account <alias>` · `--stripe-account <acct_…>` · `--live` · `--full` · `--expand <fields|paths>` · `--expand-stripe <paths>` · `--stream` · `--timeout <dur>`.
+Global flags: `--account <alias>` · `--stripe-account <acct_…>` · `--live` · `--full` · `--expand <fields|paths>` · `--expand-stripe <paths>` · `--raw` · `--api-version <date>` · `--stream` · `--timeout <dur>`.
 
 `agent-stripe <command> usage` is the source of truth for flags — don't trust this file for flag-level detail; read the CLI's own help.
 
@@ -145,6 +145,25 @@ agent-stripe resource describe subscription --depth 3
 ```
 
 Returns the field tree (reflected from the SDK) and the curated `expandPaths` — useful before you decide what to `--expand-stripe`.
+
+Caveat: `describe` reflects over the SDK's structs, so it shows one version's shape and only the fields that version models. If a field you expect is missing from a real response, that is the reason — see below.
+
+### "A field I expect isn't in the output"
+
+Responses are normally marshalled through SDK structs pinned to one Stripe API version. Any field that version does not model is dropped silently — no error, indistinguishable from Stripe not sending it. `--raw` emits Stripe's JSON instead:
+
+```
+agent-stripe invoice get in_… --raw
+```
+
+To see what a consumer on an older version receives — webhook endpoints pin their own version, often years behind — name it. `--api-version` implies `--raw`:
+
+```
+agent-stripe webhook-endpoint list                       # read each endpoint's api_version
+agent-stripe --api-version 2022-11-15 invoice get in_…   # what that endpoint's payload looks like
+```
+
+The envelope's `apiVersion` reports the version actually requested, and raw responses carry `"raw": true`, so the two modes are never confusable in a transcript.
 
 ## Installation
 
