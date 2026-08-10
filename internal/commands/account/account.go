@@ -275,14 +275,14 @@ func runTest(ctx context.Context, opts *cli.GlobalOpts, args []string) error {
 		// opts.StripeAccount must ride along: without it the probe silently
 		// reports on the platform account while appearing to confirm the
 		// connected one — the worst failure for a scope-verifying command.
-		opts.Client = agentstripe.NewClient(secret, "", opts.StripeAccount, opts.Timeout)
+		opts.Client = agentstripe.NewClient(secret, "", opts.StripeAccount, opts.Timeout, agentstripe.WithAPIVersion(opts.APIVersion))
 	}
 
 	acct, err := opts.Client.V1Accounts.Retrieve(ctx, &stripeapi.AccountRetrieveParams{})
 	if err != nil {
 		return err
 	}
-	m, err := agentstripe.ToRawMap(acct)
+	m, err := cli.RawMap(opts, acct)
 	if err != nil {
 		return err
 	}

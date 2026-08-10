@@ -23,7 +23,7 @@ func RunListOrStream[T any](ctx context.Context, opts *GlobalOpts, list *stripea
 		}
 		return StreamList(ctx, opts, list, cap)
 	}
-	items, hasMore, nextCursor, err := agentstripe.CollectRawList(ctx, list, limit)
+	items, hasMore, nextCursor, err := agentstripe.CollectRawList(ctx, list, limit, opts.Raw)
 	if err != nil {
 		return err
 	}
@@ -39,7 +39,7 @@ func RunSearchOrStream[T any](ctx context.Context, opts *GlobalOpts, list *strip
 		}
 		return StreamSearch(ctx, opts, list, cap)
 	}
-	items, hasMore, nextCursor, err := agentstripe.CollectRawSearch(ctx, list, limit)
+	items, hasMore, nextCursor, err := agentstripe.CollectRawSearch(ctx, list, limit, opts.Raw)
 	if err != nil {
 		return err
 	}

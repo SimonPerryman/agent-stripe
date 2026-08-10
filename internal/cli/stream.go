@@ -45,8 +45,18 @@ func EnvelopeFor(opts *GlobalOpts) output.Envelope {
 		Mode:          mode,
 		Account:       alias,
 		StripeAccount: opts.StripeAccount,
-		APIVersion:    agentstripe.PinnedAPIVersion,
+		APIVersion:    EffectiveAPIVersion(opts),
+		Raw:           opts.Raw,
 	}
+}
+
+// EffectiveAPIVersion is the version the request was actually made at: the
+// override when one is set, otherwise the version the SDK is pinned to.
+func EffectiveAPIVersion(opts *GlobalOpts) string {
+	if opts != nil && opts.APIVersion != "" {
+		return opts.APIVersion
+	}
+	return agentstripe.PinnedAPIVersion
 }
 
 // RenderForStream renders a single record under the global render options.
@@ -66,14 +76,14 @@ func RenderForStream(rec map[string]any, opts *GlobalOpts) (any, error) {
 // pipe (e.g. `| head`) returns nil for a clean exit.
 func StreamList[T any](ctx context.Context, opts *GlobalOpts, list *stripeapi.V1List[T], cap int) error {
 	return streamIter(ctx, opts, cap, func(emit func(map[string]any) error) (int, error) {
-		return agentstripe.StreamRawList(ctx, list, cap, emit)
+		return agentstripe.StreamRawList(ctx, list, cap, opts.Raw, emit)
 	})
 }
 
 // StreamSearch is the V1SearchList[T] counterpart of StreamList.
 func StreamSearch[T any](ctx context.Context, opts *GlobalOpts, list *stripeapi.V1SearchList[T], cap int) error {
 	return streamIter(ctx, opts, cap, func(emit func(map[string]any) error) (int, error) {
-		return agentstripe.StreamRawSearch(ctx, list, cap, emit)
+		return agentstripe.StreamRawSearch(ctx, list, cap, opts.Raw, emit)
 	})
 }
 

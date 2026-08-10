@@ -22,11 +22,20 @@ type Envelope struct {
 	// account. Without it a platform charge and a connected-account charge
 	// are indistinguishable in the output.
 	StripeAccount string `json:"stripeAccount,omitempty"`
-	APIVersion    string `json:"apiVersion"`
-	Data          any    `json:"data,omitempty"`
-	Page          *Page  `json:"page,omitempty"`
-	Scan          *Scan  `json:"scan,omitempty"`
-	Stream        bool   `json:"stream,omitempty"`
+	// APIVersion is the version these results were *requested* at, not the
+	// one the CLI is built against. Under --api-version the two differ, and
+	// echoing the pinned constant regardless would make the field a lie
+	// exactly when a reader most needs it.
+	APIVersion string `json:"apiVersion"`
+	// Raw marks output decoded from Stripe's response body rather than the
+	// SDK's structs (--raw, and implied by --api-version). It is a different
+	// contract: every wire field survives, but none of the shape guarantees
+	// the typed path offers do.
+	Raw    bool  `json:"raw,omitempty"`
+	Data   any   `json:"data,omitempty"`
+	Page   *Page `json:"page,omitempty"`
+	Scan   *Scan `json:"scan,omitempty"`
+	Stream bool  `json:"stream,omitempty"`
 }
 
 // Page describes pagination state for list/search responses.

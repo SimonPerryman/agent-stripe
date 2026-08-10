@@ -36,7 +36,7 @@ func TestClientHitsAccountEndpoint(t *testing.T) {
 		t.Fatalf("unexpected id %q", acct.ID)
 	}
 
-	m, err := ToRawMap(acct)
+	m, err := ToRawMap(acct, false)
 	if err != nil {
 		t.Fatal(err)
 	}

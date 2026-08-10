@@ -13,7 +13,7 @@ import (
 // Stripe Search's opaque `next_page` token — note that this is NOT
 // interchangeable with the `list` cursor (which is an object id passed via
 // `starting_after`). Search results are routed back through `--page`.
-func CollectRawSearch[T any](ctx context.Context, list *stripeapi.V1SearchList[T], maxResults int) (items []map[string]any, hasMore bool, nextCursor string, err error) {
+func CollectRawSearch[T any](ctx context.Context, list *stripeapi.V1SearchList[T], maxResults int, raw bool) (items []map[string]any, hasMore bool, nextCursor string, err error) {
 	if maxResults <= 0 {
 		maxResults = DefaultMaxResults
 	}
@@ -22,7 +22,7 @@ func CollectRawSearch[T any](ctx context.Context, list *stripeapi.V1SearchList[T
 		if iterErr != nil {
 			return items, false, "", iterErr
 		}
-		m, _, mErr := toRawMap(item)
+		m, _, mErr := toRawMap(item, raw)
 		if mErr != nil {
 			return items, false, "", mErr
 		}

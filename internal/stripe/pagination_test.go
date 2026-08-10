@@ -63,7 +63,7 @@ func TestCollectRawList_SinglePage(t *testing.T) {
 
 	params := &stripeapi.CustomerListParams{}
 	params.Limit = stripeapi.Int64(10)
-	items, hasMore, cursor, err := CollectRawList(context.Background(), client.V1Customers.List(context.Background(), params), 50)
+	items, hasMore, cursor, err := CollectRawList(context.Background(), client.V1Customers.List(context.Background(), params), 50, false)
 	if err != nil {
 		t.Fatalf("CollectRawList: %v", err)
 	}
@@ -88,7 +88,7 @@ func TestCollectRawList_MultiPage(t *testing.T) {
 
 	params := &stripeapi.CustomerListParams{}
 	params.Limit = stripeapi.Int64(10)
-	items, hasMore, cursor, err := CollectRawList(context.Background(), client.V1Customers.List(context.Background(), params), 100)
+	items, hasMore, cursor, err := CollectRawList(context.Background(), client.V1Customers.List(context.Background(), params), 100, false)
 	if err != nil {
 		t.Fatalf("CollectRawList: %v", err)
 	}
@@ -113,7 +113,7 @@ func TestCollectRawList_CapHonouredAndHasMore(t *testing.T) {
 
 	params := &stripeapi.CustomerListParams{}
 	params.Limit = stripeapi.Int64(10)
-	items, hasMore, cursor, err := CollectRawList(context.Background(), client.V1Customers.List(context.Background(), params), 7)
+	items, hasMore, cursor, err := CollectRawList(context.Background(), client.V1Customers.List(context.Background(), params), 7, false)
 	if err != nil {
 		t.Fatalf("CollectRawList: %v", err)
 	}
@@ -132,7 +132,7 @@ func TestCollectRawList_Empty(t *testing.T) {
 	srv, _ := newPaginatedCustomerServer(t, 0, 10)
 	client := NewClient("sk_test_fake", srv.URL, "", 5*time.Second)
 
-	items, hasMore, cursor, err := CollectRawList(context.Background(), client.V1Customers.List(context.Background(), &stripeapi.CustomerListParams{}), 0)
+	items, hasMore, cursor, err := CollectRawList(context.Background(), client.V1Customers.List(context.Background(), &stripeapi.CustomerListParams{}), 0, false)
 	if err != nil {
 		t.Fatalf("CollectRawList: %v", err)
 	}
@@ -155,7 +155,7 @@ func TestCollectRawList_ServerError(t *testing.T) {
 	defer srv.Close()
 	client := NewClient("sk_test_fake", srv.URL, "", 5*time.Second)
 
-	_, _, _, err := CollectRawList(context.Background(), client.V1Customers.List(context.Background(), &stripeapi.CustomerListParams{}), 10)
+	_, _, _, err := CollectRawList(context.Background(), client.V1Customers.List(context.Background(), &stripeapi.CustomerListParams{}), 10, false)
 	if err == nil {
 		t.Fatal("expected server error to propagate")
 	}
@@ -172,7 +172,7 @@ func TestCollectRawList_ContextCancellation(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	_, _, _, err := CollectRawList(ctx, client.V1Customers.List(ctx, &stripeapi.CustomerListParams{}), 100)
+	_, _, _, err := CollectRawList(ctx, client.V1Customers.List(ctx, &stripeapi.CustomerListParams{}), 100, false)
 	if err == nil {
 		t.Fatal("expected error after context cancel")
 	}
@@ -193,7 +193,7 @@ func TestToRawMap_RoundTrip(t *testing.T) {
 		ID   string `json:"id"`
 		Name string `json:"name"`
 	}
-	m, err := ToRawMap(X{ID: "x_1", Name: "alice"})
+	m, err := ToRawMap(X{ID: "x_1", Name: "alice"}, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -207,7 +207,7 @@ func TestCollectRawList_LimitClampedToDefault(t *testing.T) {
 	// 5 items, default cap exceeds total, so we drain fully.
 	srv, _ := newPaginatedCustomerServer(t, 5, 10)
 	client := NewClient("sk_test_fake", srv.URL, "", 5*time.Second)
-	items, hasMore, _, err := CollectRawList(context.Background(), client.V1Customers.List(context.Background(), &stripeapi.CustomerListParams{}), 0)
+	items, hasMore, _, err := CollectRawList(context.Background(), client.V1Customers.List(context.Background(), &stripeapi.CustomerListParams{}), 0, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -236,7 +236,7 @@ func TestCollectRawList_StartingAfterPassedToServer(t *testing.T) {
 	}))
 	defer srv.Close()
 	client := NewClient("sk_test_fake", srv.URL, "", 5*time.Second)
-	items, _, _, err := CollectRawList(context.Background(), client.V1Customers.List(context.Background(), &stripeapi.CustomerListParams{}), 50)
+	items, _, _, err := CollectRawList(context.Background(), client.V1Customers.List(context.Background(), &stripeapi.CustomerListParams{}), 50, false)
 	if err != nil {
 		t.Fatal(err)
 	}

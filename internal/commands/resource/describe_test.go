@@ -4,12 +4,15 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"os"
 	"strings"
 	"testing"
 
 	"github.com/simonperryman/agent-stripe/internal/cli"
+	"github.com/simonperryman/agent-stripe/internal/output"
+	agentstripe "github.com/simonperryman/agent-stripe/internal/stripe"
 )
 
 func TestDescribeCustomer_NoAPICall(t *testing.T) {
@@ -98,6 +101,46 @@ func TestDescribeUnknownResource(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "unknown resource") {
 		t.Errorf("error should mention unknown resource, got %v", err)
+	}
+}
+
+// describe reflects over the pinned SDK's structs and never calls Stripe, so
+// it cannot show another version's shape. Answering anyway — pinned tree,
+// envelope echoing the requested version — would be a silent wrong answer to
+// exactly the question being asked.
+func TestDescribeRejectsAPIVersion(t *testing.T) {
+	err := runDescribe(context.Background(), &cli.GlobalOpts{APIVersion: "2022-11-15"}, []string{"invoice"})
+	if err == nil {
+		t.Fatal("expected --api-version to be rejected on a reflection-only command")
+	}
+	var oe *output.Error
+	if !errors.As(err, &oe) {
+		t.Fatalf("want *output.Error, got %T", err)
+	}
+	if oe.By != output.FixableByAgent {
+		t.Errorf("fixableBy = %q, want agent", oe.By)
+	}
+	if !strings.Contains(oe.Msg, "2022-11-15") || !strings.Contains(oe.Hint, "--api-version") {
+		t.Errorf("error should name the flag and the value: %q / %q", oe.Msg, oe.Hint)
+	}
+}
+
+// The envelope must keep reporting the pinned version even though the flag is
+// rejected: the tree it describes really is that version's shape.
+func TestDescribeEnvelopeReportsPinnedVersion(t *testing.T) {
+	out := captureStdout(t, func() {
+		if err := runDescribe(context.Background(), &cli.GlobalOpts{}, []string{"invoice", "--depth", "1"}); err != nil {
+			t.Fatalf("runDescribe: %v", err)
+		}
+	})
+	var env struct {
+		APIVersion string `json:"apiVersion"`
+	}
+	if err := json.Unmarshal([]byte(out), &env); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if env.APIVersion != agentstripe.PinnedAPIVersion {
+		t.Errorf("apiVersion = %q, want the pinned %q", env.APIVersion, agentstripe.PinnedAPIVersion)
 	}
 }
 

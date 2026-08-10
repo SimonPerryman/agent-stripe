@@ -124,7 +124,7 @@ func TestExternalAccounts_ExpandsAndProjects(t *testing.T) {
 // The wrapper tags BankAccount/Card `json:"-"`, so marshalling it directly
 // loses everything but {id, object}. Regression guard: the concrete object's
 // fields must survive.
-func TestExternalAccountItems_UnwrapsConcreteTypes(t *testing.T) {
+func TestTypedExternalAccountItems_UnwrapsConcreteTypes(t *testing.T) {
 	list := &stripeapi.AccountExternalAccountList{
 		Data: []*stripeapi.AccountExternalAccount{
 			{ID: "ba_1", Type: stripeapi.AccountExternalAccountTypeBankAccount,
@@ -133,7 +133,7 @@ func TestExternalAccountItems_UnwrapsConcreteTypes(t *testing.T) {
 				Card: &stripeapi.Card{ID: "card_1", Brand: stripeapi.CardBrandVisa, Last4: "4242"}},
 		},
 	}
-	items, err := externalAccountItems(list)
+	items, err := typedExternalAccountItems(list)
 	if err != nil {
 		t.Fatalf("externalAccountItems: %v", err)
 	}
@@ -148,11 +148,58 @@ func TestExternalAccountItems_UnwrapsConcreteTypes(t *testing.T) {
 	}
 }
 
-func TestExternalAccountItems_EmptyIsNotAnError(t *testing.T) {
+func TestTypedExternalAccountItems_EmptyIsNotAnError(t *testing.T) {
 	// An account with nothing attached is a valid answer, not an error.
-	items, err := externalAccountItems(nil)
+	items, err := typedExternalAccountItems(nil)
 	if err != nil || len(items) != 0 {
 		t.Errorf("expected empty result for nil list, got %v / %v", items, err)
+	}
+}
+
+// External accounts are the one place --raw cannot use the SDK's per-object
+// recorded body: they are parsed out of the account payload, so they have no
+// response of their own. Sourcing them from the parent's body is what keeps
+// --raw honest here — a silent fall back to the struct path would return
+// exactly the truncated {id, object} answer this subcommand exists to avoid.
+func TestExternalAccounts_RawSourcesFromTheParentBody(t *testing.T) {
+	const body = `{"id":"acct_1","object":"account","external_accounts":{"object":"list","has_more":false,` +
+		`"data":[{"id":"ba_1","object":"bank_account","last4":"6789","bank_name":"Test Bank",` +
+		`"future_field_the_sdk_cannot_model":"kept"}]}}`
+	srv, _ := recordingServer(t, body)
+
+	out := testutil.WithCapturedStdout(t, func() {
+		if err := runExternalAccounts(context.Background(), testutil.NewRawOpts(srv.URL), []string{"acct_1"}); err != nil {
+			t.Errorf("runExternalAccounts: %v", err)
+		}
+	})
+
+	var env map[string]any
+	if err := json.Unmarshal([]byte(out), &env); err != nil {
+		t.Fatalf("decode envelope: %v\noutput: %s", err, out)
+	}
+	items, ok := env["data"].([]any)
+	if !ok || len(items) != 1 {
+		t.Fatalf("expected one external account, got %s", out)
+	}
+	ea, ok := items[0].(map[string]any)
+	if !ok {
+		t.Fatalf("item is not an object: %v", items[0])
+	}
+	if ea["last4"] != "6789" || ea["bank_name"] != "Test Bank" {
+		t.Errorf("raw projection lost the destination details: %v", ea)
+	}
+	if ea["future_field_the_sdk_cannot_model"] != "kept" {
+		t.Errorf("raw projection fell back to the struct path: %v", ea)
+	}
+}
+
+// No external_accounts on the body is the same answer as a nil typed list:
+// nowhere to pay out to yet, not a failure.
+func TestExternalAccounts_RawWithNoListIsNotAnError(t *testing.T) {
+	srv, _ := recordingServer(t, `{"id":"acct_1","object":"account"}`)
+	testutil.CaptureStdout(t)
+	if err := runExternalAccounts(context.Background(), testutil.NewRawOpts(srv.URL), []string{"acct_1"}); err != nil {
+		t.Errorf("runExternalAccounts: %v", err)
 	}
 }
 

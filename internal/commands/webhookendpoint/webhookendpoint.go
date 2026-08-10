@@ -52,7 +52,13 @@ cannot see: pass --stripe-account acct_... (global) to list those.
 Each endpoint also carries its own 'api_version', which is the version its
 consumer actually receives — frequently pinned years behind, and independent
 of the apiVersion this CLI reports. When an endpoint's payload disagrees with
-what you read here, compare those two first.
+what you read here, compare those two first, then re-read the object at the
+endpoint's version to see what it actually receives:
+
+  agent-stripe --api-version <endpoint's api_version> invoice get in_...
+
+(--api-version implies --raw, which is what makes the older version's fields
+visible at all.)
 
 Help: usage | help | -h | --help`
 
@@ -85,11 +91,7 @@ func runGet(ctx context.Context, opts *cli.GlobalOpts, args []string) error {
 	if err != nil {
 		return err
 	}
-	m, err := agentstripe.ToRawMap(we)
-	if err != nil {
-		return err
-	}
-	return cli.EmitSingle(opts, m)
+	return cli.EmitSingle(opts, we)
 }
 
 func runList(ctx context.Context, opts *cli.GlobalOpts, args []string) error {
@@ -133,7 +135,7 @@ func runForEvent(ctx context.Context, opts *cli.GlobalOpts, args []string) error
 	listParams := &stripeapi.WebhookEndpointListParams{}
 	listParams.Limit = stripeapi.Int64(agentstripe.MaxPageSize)
 	listParams.Expand = agentstripe.ExpandSlice(opts.ExpandStripe)
-	endpoints, _, _, err := agentstripe.CollectRawList(ctx, opts.Client.V1WebhookEndpoints.List(ctx, listParams), agentstripe.MaxPageSize)
+	endpoints, _, _, err := agentstripe.CollectRawList(ctx, opts.Client.V1WebhookEndpoints.List(ctx, listParams), agentstripe.MaxPageSize, opts.Raw)
 	if err != nil {
 		return err
 	}

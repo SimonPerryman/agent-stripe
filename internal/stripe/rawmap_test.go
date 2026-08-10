@@ -15,7 +15,7 @@ func TestAccountFalseBooleansSurviveMarshalling(t *testing.T) {
 		ID: "acct_1", Object: "account", Country: "GB",
 		ChargesEnabled: false, PayoutsEnabled: false, DetailsSubmitted: false,
 	}
-	m, err := ToRawMap(acct)
+	m, err := ToRawMap(acct, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -35,7 +35,7 @@ func TestAccountTrueBooleansStillMarshal(t *testing.T) {
 		ID: "acct_1", Object: "account",
 		ChargesEnabled: true, PayoutsEnabled: true, DetailsSubmitted: true,
 	}
-	m, err := ToRawMap(acct)
+	m, err := ToRawMap(acct, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -50,7 +50,7 @@ func TestAccountTrueBooleansStillMarshal(t *testing.T) {
 // no object field. Stamping charges_enabled:false on that would invent a
 // signal rather than restore one.
 func TestUnexpandedAccountReferenceIsNotStamped(t *testing.T) {
-	m, err := ToRawMap(&stripeapi.Account{ID: "acct_1"})
+	m, err := ToRawMap(&stripeapi.Account{ID: "acct_1"}, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,7 +65,7 @@ func TestUnexpandedAccountReferenceIsNotStamped(t *testing.T) {
 // list stays minimal. If a future SDK bump adds one, this documents the
 // assumption that made that safe.
 func TestOtherResourcesDoNotNeedRestoring(t *testing.T) {
-	m, err := ToRawMap(&stripeapi.Charge{ID: "ch_1", Object: "charge", Captured: false, Refunded: false})
+	m, err := ToRawMap(&stripeapi.Charge{ID: "ch_1", Object: "charge", Captured: false, Refunded: false}, false)
 	if err != nil {
 		t.Fatal(err)
 	}

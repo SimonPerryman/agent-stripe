@@ -54,15 +54,20 @@ The pinned API version restructured Invoice: the old top-level subscription,
 charge and payment_intent fields moved under parent, and line items now carry
 pricing.price_details.{price,product} rather than price. Stripe still
 *accepts* the old expand paths and returns data for them, but the response has
-nowhere to put it — you get null with no error. Use the paths above.
+nowhere to put it — you get null with no error. Use the paths above, or pass
+--raw, which emits Stripe's JSON directly and so keeps whatever the expand
+actually returned.
 
 For 'invoice lines', the most useful --expand-stripe is
 data.pricing.price_details.price — "what did this customer actually pay for".
 
-Connect fees: application_fee_amount is not readable from the invoice — the
-pinned SDK's Invoice response type has no such field, so it is dropped even if
-Stripe sends it. To find what the platform earned on an invoice, hop to the
-payment: invoice get --expand-stripe ... for the charge id, then
+Connect fees: application_fee_amount is absent from the default output — the
+pinned SDK's Invoice response type has no such field, so it is dropped even
+when Stripe sends it. Pass --raw to read it off the wire. Note that Stripe's
+Basil release dropped the field from Invoice entirely, so on the pinned
+version it may genuinely not be sent; --raw --api-version 2022-11-15 shows
+what an older consumer sees. The other route is to hop to the payment:
+'invoice get --raw' for the charge id, then
 'charge get ch_... --expand-stripe application_fee', or
 'application-fee list --charge ch_...'.
 
@@ -112,11 +117,7 @@ func runGet(ctx context.Context, opts *cli.GlobalOpts, args []string) error {
 	if err != nil {
 		return err
 	}
-	m, err := agentstripe.ToRawMap(inv)
-	if err != nil {
-		return err
-	}
-	return cli.EmitSingle(opts, m)
+	return cli.EmitSingle(opts, inv)
 }
 
 func runList(ctx context.Context, opts *cli.GlobalOpts, args []string) error {

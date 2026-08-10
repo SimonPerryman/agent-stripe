@@ -78,11 +78,7 @@ func runGet(ctx context.Context, opts *cli.GlobalOpts, args []string) error {
 	if err != nil {
 		return err
 	}
-	m, err := agentstripe.ToRawMap(b)
-	if err != nil {
-		return err
-	}
-	return cli.EmitSingle(opts, m)
+	return cli.EmitSingle(opts, b)
 }
 
 func runTransactions(ctx context.Context, opts *cli.GlobalOpts, args []string) error {

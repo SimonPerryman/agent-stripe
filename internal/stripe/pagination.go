@@ -16,7 +16,11 @@ const MaxPageSize = 100
 // CollectRawList drains a V1List iterator up to maxResults, returning each
 // item as a decoded map. hasMore is true if more pages remain after the cap.
 // nextCursor is the id of the last collected item (Stripe's cursor convention).
-func CollectRawList[T any](ctx context.Context, list *stripeapi.V1List[T], maxResults int) (items []map[string]any, hasMore bool, nextCursor string, err error) {
+//
+// raw selects the decoding source for each item (see ToRawMap). The cursor is
+// unaffected: pagination still rides the typed iterator, and `id` reads the
+// same off either map.
+func CollectRawList[T any](ctx context.Context, list *stripeapi.V1List[T], maxResults int, raw bool) (items []map[string]any, hasMore bool, nextCursor string, err error) {
 	if maxResults <= 0 {
 		maxResults = DefaultMaxResults
 	}
@@ -25,7 +29,7 @@ func CollectRawList[T any](ctx context.Context, list *stripeapi.V1List[T], maxRe
 		if iterErr != nil {
 			return items, false, "", iterErr
 		}
-		m, id, mErr := toRawMap(item)
+		m, id, mErr := toRawMap(item, raw)
 		if mErr != nil {
 			return items, false, "", mErr
 		}
@@ -44,8 +48,8 @@ func CollectRawList[T any](ctx context.Context, list *stripeapi.V1List[T], maxRe
 // for the pagination cursor. It must delegate rather than re-implement the
 // marshal: when these were two separate JSON round-trips, a fix applied to
 // one silently missed `list` and `--stream`.
-func toRawMap(item any) (map[string]any, string, error) {
-	m, err := ToRawMap(item)
+func toRawMap(item any, raw bool) (map[string]any, string, error) {
+	m, err := ToRawMap(item, raw)
 	if err != nil {
 		return nil, "", err
 	}
@@ -68,9 +72,26 @@ func ExpandSlice(paths []string) []*string {
 	return out
 }
 
-// ToRawMap converts any Stripe resource into a map[string]any via JSON
-// round-trip so it can flow through the output package's renderer.
-func ToRawMap(item any) (map[string]any, error) {
+// ToRawMap converts a Stripe resource into a map[string]any so it can flow
+// through the output package's renderer. `raw` picks which of two sources
+// that map is decoded from, and the two differ in what they can represent:
+//
+//   - raw == false (default): marshal the SDK response struct. Anything the
+//     pinned API version does not model is absent, because the struct had
+//     nowhere to put it — no error, no warning, indistinguishable from
+//     "Stripe didn't send it". In exchange the shape is stable and the
+//     omitempty repair below applies.
+//   - raw == true (--raw): decode the body Stripe actually sent. Every field
+//     on the wire survives, including ones this SDK version predates or
+//     postdates. Nothing is repaired because nothing was lost.
+func ToRawMap(item any, raw bool) (map[string]any, error) {
+	if raw {
+		b := RawJSONOf(item)
+		if b == nil {
+			return nil, errNoRawJSON(item)
+		}
+		return DecodeRawJSON(b)
+	}
 	b, err := json.Marshal(item)
 	if err != nil {
 		return nil, err
@@ -90,9 +111,10 @@ func ToRawMap(item any) (map[string]any, error) {
 // and `details_submitted` are the summary "is this account working?" fields,
 // and they disappear in exactly the case someone is investigating. A broken
 // account and an account whose fields Stripe never returned render
-// identically. We marshal the SDK struct rather than Stripe's wire JSON
-// (that is what buys us --expand-stripe and the truncation walk), so the tag
-// is ours to compensate for.
+// identically. The default path marshals the SDK struct rather than Stripe's
+// wire JSON, so the tag is ours to compensate for. --raw does not call this:
+// the wire body carries the real values and stamping struct fields over them
+// would be inventing data, not restoring it.
 //
 // Only Account is affected today — the response booleans on charge,
 // subscription, payout, refund, dispute and capability carry no `omitempty`.

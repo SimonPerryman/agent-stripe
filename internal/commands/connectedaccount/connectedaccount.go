@@ -106,11 +106,7 @@ func runGet(ctx context.Context, opts *cli.GlobalOpts, args []string) error {
 	if err != nil {
 		return err
 	}
-	m, err := agentstripe.ToRawMap(acct)
-	if err != nil {
-		return err
-	}
-	return cli.EmitSingle(opts, m)
+	return cli.EmitSingle(opts, acct)
 }
 
 func runList(ctx context.Context, opts *cli.GlobalOpts, args []string) error {
@@ -206,7 +202,7 @@ func runExternalAccounts(ctx context.Context, opts *cli.GlobalOpts, args []strin
 	if err != nil {
 		return err
 	}
-	items, err := externalAccountItems(acct.ExternalAccounts)
+	items, err := externalAccountItems(opts, acct)
 	if err != nil {
 		return err
 	}
@@ -214,7 +210,17 @@ func runExternalAccounts(ctx context.Context, opts *cli.GlobalOpts, args []strin
 	return cli.EmitList(opts, items, hasMore, "")
 }
 
-// externalAccountItems unwraps the polymorphic list into raw maps.
+// externalAccountItems projects the account's external-accounts list down to
+// one map per payout destination. The two modes need different sources, and
+// neither can stand in for the other.
+func externalAccountItems(opts *cli.GlobalOpts, acct *stripeapi.Account) ([]map[string]any, error) {
+	if opts.Raw {
+		return rawExternalAccountItems(acct)
+	}
+	return typedExternalAccountItems(acct.ExternalAccounts)
+}
+
+// typedExternalAccountItems unwraps the polymorphic list off the SDK structs.
 //
 // It must reach through AccountExternalAccount to the concrete BankAccount or
 // Card: that wrapper tags both payloads `json:"-"`, so marshalling the account
@@ -224,7 +230,7 @@ func runExternalAccounts(ctx context.Context, opts *cli.GlobalOpts, args []strin
 //
 // A nil list is not an error: an account with nothing attached is a perfectly
 // good answer to "where do payouts go" (nowhere, yet).
-func externalAccountItems(list *stripeapi.AccountExternalAccountList) ([]map[string]any, error) {
+func typedExternalAccountItems(list *stripeapi.AccountExternalAccountList) ([]map[string]any, error) {
 	if list == nil {
 		return nil, nil
 	}
@@ -240,11 +246,46 @@ func externalAccountItems(list *stripeapi.AccountExternalAccountList) ([]map[str
 		case ea.Card != nil:
 			concrete = ea.Card
 		}
-		m, err := agentstripe.ToRawMap(concrete)
+		m, err := agentstripe.ToRawMap(concrete, false)
 		if err != nil {
 			return nil, err
 		}
 		items = append(items, m)
+	}
+	return items, nil
+}
+
+// rawExternalAccountItems takes the same list off the account's response body.
+//
+// The nested objects have no recorded response of their own — the SDK parsed
+// them out of the account payload, so there is no per-item RawJSON to decode.
+// Sourcing them from the parent is what keeps --raw honest here rather than
+// silently degrading to the struct path, which is the one this subcommand
+// exists because of.
+func rawExternalAccountItems(acct *stripeapi.Account) ([]map[string]any, error) {
+	body := agentstripe.RawJSONOf(acct)
+	if body == nil {
+		return nil, errors.New("--raw: no response body recorded for the account")
+	}
+	m, err := agentstripe.DecodeRawJSON(body)
+	if err != nil {
+		return nil, err
+	}
+	// Absent rather than empty means Stripe did not return the list at all —
+	// same answer as a nil typed list, not an error.
+	wrapper, ok := m["external_accounts"].(map[string]any)
+	if !ok {
+		return nil, nil
+	}
+	data, ok := wrapper["data"].([]any)
+	if !ok {
+		return nil, nil
+	}
+	items := make([]map[string]any, 0, len(data))
+	for _, entry := range data {
+		if ea, ok := entry.(map[string]any); ok {
+			items = append(items, ea)
+		}
 	}
 	return items, nil
 }

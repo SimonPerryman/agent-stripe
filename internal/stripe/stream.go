@@ -14,12 +14,12 @@ import (
 //
 // If emit returns an error (e.g. broken pipe), StreamRawList returns it
 // immediately without draining further pages.
-func StreamRawList[T any](ctx context.Context, list *stripeapi.V1List[T], maxResults int, emit func(map[string]any) error) (count int, err error) {
+func StreamRawList[T any](ctx context.Context, list *stripeapi.V1List[T], maxResults int, raw bool, emit func(map[string]any) error) (count int, err error) {
 	for item, iterErr := range list.All(ctx) {
 		if iterErr != nil {
 			return count, iterErr
 		}
-		m, _, mErr := toRawMap(item)
+		m, _, mErr := toRawMap(item, raw)
 		if mErr != nil {
 			return count, mErr
 		}
@@ -37,12 +37,12 @@ func StreamRawList[T any](ctx context.Context, list *stripeapi.V1List[T], maxRes
 // StreamRawSearch is the V1SearchList[T] counterpart of StreamRawList.
 // Search pagination uses the opaque next_page token internally; from the
 // caller's perspective the iterator just keeps going until exhausted.
-func StreamRawSearch[T any](ctx context.Context, list *stripeapi.V1SearchList[T], maxResults int, emit func(map[string]any) error) (count int, err error) {
+func StreamRawSearch[T any](ctx context.Context, list *stripeapi.V1SearchList[T], maxResults int, raw bool, emit func(map[string]any) error) (count int, err error) {
 	for item, iterErr := range list.All(ctx) {
 		if iterErr != nil {
 			return count, iterErr
 		}
-		m, _, mErr := toRawMap(item)
+		m, _, mErr := toRawMap(item, raw)
 		if mErr != nil {
 			return count, mErr
 		}
