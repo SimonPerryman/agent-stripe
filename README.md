@@ -246,6 +246,16 @@ cleanly when it's absent, so a plain non-Connect test key still passes:
 STRIPE_TEST_KEY=sk_test_... STRIPE_TEST_CONNECTED_ACCOUNT=acct_... make integration
 ```
 
+Point it at an account with outstanding requirements rather than a fully
+onboarded one — the disabled path exercises more branches (empty external
+accounts, unrequested capabilities, `charges_enabled: false`) than the happy
+path does.
+
+`make integration` refuses to run without `STRIPE_TEST_KEY` and passes
+`-count=1`. Both matter: with no key every test skips and still prints `ok`,
+and a cached re-run prints `(cached)` without executing anything — either way
+a no-op looks identical to a pass.
+
 ## Not included (by design)
 
 Writes (charges, refunds, mutations), webhook tunneling, card testing, Connect *onboarding* (`account_links`, `account_sessions` — all write flows). Use the [official Stripe CLI](https://github.com/stripe/stripe-cli) for those. Connect *reads* are supported: see [`--stripe-account`](#trace-a-connect-payment-across-platform-and-connected-account).
