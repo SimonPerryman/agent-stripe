@@ -9,115 +9,44 @@ and added the two Connect-only resources with no command. Review of that work
 surfaced a further set of reads that Connect investigations keep reaching for
 and not finding. This phase collects them.
 
-Nothing here is a defect in phase 13 — those were fixed in the same PR. These
-are gaps in coverage.
+Nothing here is a defect in phase 13 — those were found and fixed on the same
+PR. These are gaps in coverage, and every item is a params passthrough over an
+endpoint the SDK already exposes.
 
-## The version blind spot — one cause behind three symptoms
+The one review finding that is *not* an additive read — fields that exist on
+the wire but are invisible because output is marshalled through the pinned
+SDK's structs — is its own phase:
+[`03-api-version-raw.md`](03-api-version-raw.md). That is the correctness gap
+and should land first; everything here is additive and can wait until it is
+wanted.
 
-Three separate findings from the phase 13 review turned out to be the same
-thing, and it is the largest structural gap in the tool:
+## Plan
 
-1. `invoice.application_fee_amount` is unreadable.
-2. Several advertised expand paths were accepted by Stripe but silently
-   discarded, yielding `null` with no error.
-3. There is no way to see what a webhook consumer on an older API version
-   actually receives.
-
-**Common cause:** output is marshalled through the pinned SDK's response
-structs. Any field that version does not model is dropped, regardless of what
-the wire returns. There is no error and no warning — the field is simply
-absent, indistinguishable from "Stripe didn't send it".
-
-Confirmed on `application_fee_amount` specifically. Requesting the same
-test-mode invoice twice:
-
-- with no `Stripe-Version` header (account default, pre-Basil) — **present**
-- with `Stripe-Version: 2026-04-22.dahlia` (what this CLI pins) — **absent**
-
-Stripe's Basil release moved Invoice's flat linkage fields (`subscription`,
-`charge`, `payment_intent`) under `parent` and dropped `application_fee_amount`
-outright. Webhook endpoints pin their own version independently, and pre-Basil
-endpoints still receive the field — confirmed live: endpoints on one account
-pinned to `2020-08-27` and `2022-11-15` while this CLI reports
-`2026-04-22.dahlia`.
-
-So an agent cannot verify a fee against the payload its own webhook consumers
-receive, and "the CLI shows no application fee" is not evidence that there
-isn't one. That makes this a correctness gap, not a convenience one, and it is
-the item to do first.
-
-### 1. `--api-version` override **and** raw-body passthrough (blocking)
-
-**Two parts, and the flag alone is useless.** A `Stripe-Version` request header
-changes what the server sends; it does not change what our marshalling keeps.
-v85's `Invoice` struct has no `ApplicationFeeAmount` field, so the value would
-be discarded on arrival however the request was framed. Shipping the flag on
-its own would look like it worked while dropping the same fields — worse than
-not having it.
-
-**Shape:** mirror `--stripe-account` exactly. A `--api-version` global flag,
-`AGENT_STRIPE_API_VERSION` env fallback, no config-file default, injected as a
-`Stripe-Version` header at the same transport chokepoint. The envelope already
-echoes `apiVersion`; it must report the *effective* version rather than the
-pinned constant, or the echo becomes a lie.
-
-**Raw mode is smaller than first assumed.** A spike (2026-08-10) confirmed the
-existing render pipeline needs no changes: `output.Render` already has a fast
-path for `map[string]any`, so unmarshalling Stripe's response body into a map
-instead of a struct feeds truncation, pruning, `--expand` and the `--stream`
-record path unmodified. `stripe.APIResponse` exposes `RawJSON []byte` on every
-response, and the SDK has a `RawRequest` backend, so the body is already
-reachable without new HTTP plumbing.
-
-Measured blind spot, same invoice at two versions:
-
-    fields present at 2022-11-15 but absent at 2026-04-22.dahlia (13):
-      application_fee_amount, charge, discount, paid, paid_out_of_band,
-      payment_intent, quote, rendering_options, subscription,
-      subscription_details, tax, total_tax_amounts, transfer_data
-
-**Decided:** ship `--raw` as a flag in its own right, and have `--api-version`
-imply it. Raw output is not only about version overrides — struct marshalling
-drops fields *at the pinned version too*, which is what caused the
-`external-accounts` payload loss and the silently-discarded expand paths in
-phase 13. Tying raw mode exclusively to `--api-version` would leave that
-unreachable.
-
-Still to work out during implementation, neither large:
-- Cursor pagination reads `has_more`/`id` off the decoded map — fine for a map,
-  but the typed list helpers need a raw sibling.
-- `resource describe` reflects over pinned structs and cannot describe another
-  version's shape. Say so rather than pretending otherwise.
-
-## Additive reads
-
-Independently shippable, no design needed.
-
-### 2. `balance transaction get <txn_id>`
+### 1. `balance transaction get <txn_id>`
 
 `balance transactions` lists; there is no single-object read. Spot-checking one
 ledger row today means re-listing a whole payout and filtering client-side.
 `V1BalanceTransactions.Retrieve` exists. Cheap, and the most-missed of the set.
 
-### 3. `balance transactions --source <ch_|fee_|tr_|po_>`
+### 2. `balance transactions --source <ch_|fee_|tr_|po_>`
 
 Stripe supports `source` on the balance-transaction list
 (`balancetransaction.go:158`); we don't expose it. It is the direct answer to
 "what ledger row did this object produce" — currently a scan.
 
-### 4. `charge list --transfer-group`
+### 3. `charge list --transfer-group`
 
 Stripe supports it (`charge.go:425`). `transfer_group` is the join key across
 the legs of a split payment, and the only one that survives when a flow stops
 emitting transfers. `transfer list` already has `--transfer-group`; `charge`
 should match.
 
-### 5. `payout list --arrival-date-gt/-lt`
+### 4. `payout list --arrival-date-gt/-lt`
 
 Payouts reconcile by arrival date, not creation date. Only `--created-gt/lt`
 exists today, which answers a different question.
 
-### 6. `coupon` and `promotion-code`
+### 5. `coupon` and `promotion-code`
 
 Deferred once already (`plans/v2/01-more-resources.md:177`). The Connect case
 for pulling them forward: a coupon created on the platform and referenced from
@@ -125,14 +54,14 @@ a connected account's subscription fails with `No such coupon`, and there is
 currently no way to confirm from the CLI which account a coupon lives on —
 which is the whole diagnosis.
 
-### 7. Test-clock reads
+### 6. Test-clock reads
 
 `test_helpers/test_clocks` get/list. Advancing a clock is a write and stays out
 of scope, but *reading* one is how you distinguish "the clock has not advanced"
 from "the webhook did not fire" — currently indistinguishable, and every
 subscription-billing verification runs on a test clock.
 
-### 8. Multi-account fan-out (`--all-connected`) — deferred, do not start
+### 7. Multi-account fan-out (`--all-connected`) — deferred, do not start
 
 Portfolio-scale questions ("which of these accounts cannot accept payments")
 are a shell loop plus manual correlation today.
@@ -141,53 +70,36 @@ are a shell loop plus manual correlation today.
 spiked, so its sizing is guesswork, and it needs real design: a concurrency
 limit, per-account error isolation (one 403 must not abort the sweep), and an
 envelope shape that attributes each row to its account. Build it when something
-concretely needs it, not on spec. The `stripeAccount` echo is the building
-block when that day comes.
+concretely needs it, not on spec. The `stripeAccount` echo added in phase 13 is
+the building block when that day comes.
 
 ## Out of scope
 
 - Anything that writes, per the standing posture.
 - Connect onboarding, `topup`, `country-spec`, v2 accounts — unchanged from
   phase 13.
+- API-version overrides and raw output — see
+  [`03-api-version-raw.md`](03-api-version-raw.md).
 
 ## Resolved decisions
 
-- **`--raw` is its own flag; `--api-version` implies it.** See §1 — the struct
-  path drops fields at the pinned version too, so raw output has standalone
-  value.
 - **`--expand-stripe` stays documented, not auto-corrected.** Phase 13 chose to
-  document the `data.` prefix rule rather than silently rewrite the caller's
-  input; Stripe's own 400 already names the correct path, and rewriting input
-  hides the rule rather than teaching it. Revisit only if it keeps tripping
-  people up.
-- **Order of work:** §1 first (the only correctness gap), then §2–§7 batched
-  into one PR when they are actually wanted, and §8 not at all until something
-  needs it.
-
-## Open questions
-
-- §1 may deserve its own plan file if the raw-mode work grows past the section
-  above. §8 will need one if it is ever picked up.
+  document the `data.` prefix rule for list endpoints rather than silently
+  rewrite the caller's input; Stripe's own 400 already names the correct path,
+  and rewriting input hides the rule rather than teaching it. Revisit only if
+  it keeps tripping people up.
+- **Order of work:** phase 15 first (the correctness gap), then §1–§6 here
+  batched into one PR when they are actually wanted, and §7 not at all until
+  something needs it.
+- **Split the version/raw work into its own phase.** It is an output-layer fix,
+  not a read; keeping it at the head of this list buried the one item that
+  matters behind six nice-to-haves.
 
 ## Log
 
-- 2026-08-10 — Drafted from review findings on the phase 13 PR. Items 2–7 are
-  additive and independently shippable; 1 and 8 need design first.
-- 2026-08-10 — Reordered. `--api-version` was buried mid-list as a convenience;
-  it is the blocker. Three findings that looked separate — the unreadable
-  `invoice.application_fee_amount`, the silently-discarded expand paths, and
-  the inability to see an older consumer's payload — all trace to output being
-  marshalled through the pinned SDK's structs. Recorded that as one cause, with
-  the same-invoice pinned/unpinned comparison that proves it, and noted that a
-  `--api-version` flag without raw passthrough would fix none of them.
-- 2026-08-10 — Spiked raw passthrough. Downgraded from "architectural, needs
-  design" to a contained change: output.Render's map fast path means the whole
-  downstream pipeline works unmodified, and APIResponse.RawJSON already exposes
-  the body. Quantified the gap at 13 Invoice fields missing at the pinned
-  version versus 2022-11-15. The two-part requirement stands — the flag without
-  raw mode fixes nothing — but this is no longer the hardest item here.
-- 2026-08-10 — Closed the open questions. `--raw` ships as its own flag with
-  `--api-version` implying it; `--expand-stripe` stays documented rather than
-  auto-corrected; §8 explicitly deferred as the one unspiked item. Also added
-  `go vet -tags=integration` to CI — the integration tests are behind a build
-  tag, so nothing in CI compiled them and they could break silently.
+- 2026-08-10 — Drafted from review findings on the phase 13 PR.
+- 2026-08-10 — Reordered after establishing that three separate-looking
+  findings shared one cause: output marshalled through the pinned SDK structs.
+- 2026-08-10 — Spiked raw passthrough; downgraded it from "architectural" to a
+  contained change, then split it out to `03-api-version-raw.md` so this file
+  is purely the additive reads. No open questions remain here.

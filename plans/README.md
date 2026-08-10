@@ -8,7 +8,7 @@ Folders are *not* release versions; see "Folders vs releases" below.
 | [`initial-scoping/`](initial-scoping/PLAN.md) | Scope the tool, pick the stack, record the up-front design decisions. | done |
 | [`v1/`](v1/) | Establish the read-only foundation — keychain-backed credentials, the JSON envelope contract, the read-only HTTP chokepoint — and cover the core money-flow and billing resources. | done (shipped as `v1.0.0`) |
 | [`v2/`](v2/) | Widen read coverage to the resources a real reconciliation traverses: Checkout Sessions, payment methods, setup intents, invoice/subscription sub-resources, webhook endpoints. | phase 1 done |
-| [`v3/`](v3/) | Extend the CLI beyond the platform account — read connected-account data via the `Stripe-Account` header, and add the Connect-only resources. | phase 1 done, phase 2 drafted |
+| [`v3/`](v3/) | Extend the CLI beyond the platform account — read connected-account data via the `Stripe-Account` header, and add the Connect-only resources. | phase 1 done; phases 2–3 drafted |
 
 ## Folders vs releases
 
