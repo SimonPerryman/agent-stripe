@@ -1,6 +1,6 @@
 //go:build integration
 
-package balance
+package coupon
 
 import (
 	"bytes"
@@ -16,7 +16,7 @@ import (
 	agentstripe "github.com/simonperryman/agent-stripe/internal/stripe"
 )
 
-func TestIntegration_BalanceGet(t *testing.T) {
+func TestIntegration_CouponList(t *testing.T) {
 	key := os.Getenv("STRIPE_TEST_KEY")
 	if key == "" {
 		t.Skip("STRIPE_TEST_KEY not set; skipping integration test")
@@ -30,34 +30,15 @@ func TestIntegration_BalanceGet(t *testing.T) {
 	os.Stdout = w
 	go io.Copy(io.Discard, r)
 	defer func() { w.Close(); os.Stdout = old }()
-	if err := runGet(context.Background(), opts, nil); err != nil {
-		t.Fatalf("runGet: %v", err)
+	if err := runList(context.Background(), opts, []string{"--limit", "1"}); err != nil {
+		t.Fatalf("runList: %v", err)
 	}
 }
 
-func TestIntegration_BalanceTransactionsList(t *testing.T) {
-	key := os.Getenv("STRIPE_TEST_KEY")
-	if key == "" {
-		t.Skip("STRIPE_TEST_KEY not set; skipping integration test")
-	}
-	opts := &cli.GlobalOpts{
-		Account: &config.Account{Alias: "it", Mode: config.ModeTest},
-		Client:  agentstripe.NewClient(key, "", "", 15*time.Second),
-	}
-	old := os.Stdout
-	r, w, _ := os.Pipe()
-	os.Stdout = w
-	go io.Copy(io.Discard, r)
-	defer func() { w.Close(); os.Stdout = old }()
-	if err := runTransactions(context.Background(), opts, []string{"--limit", "1"}); err != nil {
-		t.Fatalf("runTransactions: %v", err)
-	}
-}
-
-// TestIntegration_BalanceTransaction discovers a txn_ from the ledger and reads
-// it back on its own — the round trip the single-object read exists for. Skips
-// cleanly when the test account's ledger is empty.
-func TestIntegration_BalanceTransaction(t *testing.T) {
+// TestIntegration_CouponGet discovers an id from the list rather than hard-coding
+// a fixture — coupon ids are caller-chosen strings, so there is no id shape a
+// test could assume.
+func TestIntegration_CouponGet(t *testing.T) {
 	key := os.Getenv("STRIPE_TEST_KEY")
 	if key == "" {
 		t.Skip("STRIPE_TEST_KEY not set; skipping integration test")
@@ -73,12 +54,12 @@ func TestIntegration_BalanceTransaction(t *testing.T) {
 	os.Stdout = w
 	done := make(chan struct{})
 	go func() { _, _ = io.Copy(&buf, r); close(done) }()
-	err := runTransactions(context.Background(), opts, []string{"--limit", "1"})
+	err := runList(context.Background(), opts, []string{"--limit", "1"})
 	_ = w.Close()
 	os.Stdout = old
 	<-done
 	if err != nil {
-		t.Fatalf("runTransactions for id discovery: %v", err)
+		t.Fatalf("runList for id discovery: %v", err)
 	}
 
 	var env struct {
@@ -87,10 +68,10 @@ func TestIntegration_BalanceTransaction(t *testing.T) {
 		} `json:"data"`
 	}
 	if err := json.Unmarshal(buf.Bytes(), &env); err != nil {
-		t.Fatalf("unmarshal transactions list: %v (out=%q)", err, buf.String())
+		t.Fatalf("unmarshal coupon list: %v (out=%q)", err, buf.String())
 	}
 	if len(env.Data) == 0 {
-		t.Skip("no balance transactions on test account; skipping single-row integration")
+		t.Skip("no coupons on test account; skipping get integration")
 	}
 
 	old = os.Stdout
@@ -98,15 +79,15 @@ func TestIntegration_BalanceTransaction(t *testing.T) {
 	os.Stdout = w
 	go io.Copy(io.Discard, r)
 	defer func() { w.Close(); os.Stdout = old }()
-	if err := runTransaction(context.Background(), opts, []string{env.Data[0].ID}); err != nil {
-		t.Fatalf("runTransaction: %v", err)
+	if err := runGet(context.Background(), opts, []string{env.Data[0].ID}); err != nil {
+		t.Fatalf("runGet: %v", err)
 	}
 }
 
-// TestIntegration_BalanceGet_ConnectedAccount is the canonical "why hasn't
-// this merchant been paid out" entry point: the balance that matters lives on
-// the connected account, not the platform.
-func TestIntegration_BalanceGet_ConnectedAccount(t *testing.T) {
+// Coupons do not inherit from the platform, so listing them under a connected
+// account must succeed on its own — an empty list there is a real answer, not
+// an error.
+func TestIntegration_CouponList_ConnectedAccount(t *testing.T) {
 	key := os.Getenv("STRIPE_TEST_KEY")
 	if key == "" {
 		t.Skip("STRIPE_TEST_KEY not set; skipping integration test")
@@ -125,7 +106,7 @@ func TestIntegration_BalanceGet_ConnectedAccount(t *testing.T) {
 	os.Stdout = w
 	go io.Copy(io.Discard, r)
 	defer func() { w.Close(); os.Stdout = old }()
-	if err := runGet(context.Background(), opts, nil); err != nil {
-		t.Fatalf("runGet: %v", err)
+	if err := runList(context.Background(), opts, []string{"--limit", "1"}); err != nil {
+		t.Fatalf("runList: %v", err)
 	}
 }
