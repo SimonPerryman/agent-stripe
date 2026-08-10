@@ -35,6 +35,12 @@ Streaming: pass --stream (top-level) on list to emit NDJSON over pages until
 Recommended --expand-stripe paths:
   charge, payment_intent, charge.balance_transaction
 
+Connect: a dispute against a direct charge lives on the connected account, not
+the platform. Looking one up from the platform returns nothing — and "no
+dispute found" is the wrong conclusion to draw from that, especially in code
+that gates a refund on the dispute's outcome. Pass --stripe-account acct_...
+(global) whenever the disputed charge was a direct charge.
+
 Help: usage | help | -h | --help`
 
 func Run(ctx context.Context, opts *cli.GlobalOpts, args []string) error {

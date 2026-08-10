@@ -47,6 +47,10 @@ Catalogs tend to be small. The default --limit is usually enough on its own.
 Recommended --expand-stripe paths:
   default_price
 
+Connect: catalogs are per-account — a connected account has its own products,
+unrelated to the platform's. Pass --stripe-account acct_... (global) to read
+them. A prod_ id from one account will not resolve against the other.
+
 Help: usage | help | -h | --help`
 
 func Run(ctx context.Context, opts *cli.GlobalOpts, args []string) error {

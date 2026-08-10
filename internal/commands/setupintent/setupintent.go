@@ -37,6 +37,10 @@ until --limit or exhausted.
 Recommended --expand-stripe paths on get:
   customer, payment_method, latest_attempt
 
+Connect: a SetupIntent created on a connected account (saving a card for that
+merchant's future direct charges) lives there. Pass --stripe-account acct_...
+(global).
+
 Help: usage | help | -h | --help`
 
 func Run(ctx context.Context, opts *cli.GlobalOpts, args []string) error {

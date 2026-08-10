@@ -42,6 +42,10 @@ Streaming: pass --stream (top-level) on list to emit NDJSON over pages until
 Recommended --expand-stripe paths:
   customer
 
+Connect: payment methods are per-account. A pm_ attached to a connected
+account's customer is not readable from the platform — pass --stripe-account
+acct_... (global).
+
 Help: usage | help | -h | --help`
 
 func Run(ctx context.Context, opts *cli.GlobalOpts, args []string) error {

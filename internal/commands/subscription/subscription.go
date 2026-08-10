@@ -51,6 +51,11 @@ Recommended --expand-stripe paths:
 
 Avoid expanding latest_invoice.lines on list — payload size balloons fast.
 
+Connect: a subscription created on a connected account is invisible from the
+platform. Pass --stripe-account acct_... (global). Note the customer, price
+and product it references are that account's objects too — ids from the
+platform will not resolve against it.
+
 Help: usage | help | -h | --help`
 
 func Run(ctx context.Context, opts *cli.GlobalOpts, args []string) error {

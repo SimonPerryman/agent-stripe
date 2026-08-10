@@ -37,6 +37,12 @@ Keys must start with sk_test_, sk_live_, rk_test_, or rk_live_ (restricted keys
 are supported). Use --form on macOS for an OS-native dialog (so the agent
 driving the CLI never sees the secret).
 
+Connect: this command manages local key aliases, but 'test' doubles as the
+Connect reachability probe. --stripe-account acct_... account test hits
+GET /v1/account through the header and returns the *connected* account — the
+cheapest way to confirm a platform key can actually read a given account
+before investigating anything else.
+
 Help: usage | help | -h | --help`
 
 // Run dispatches the account subcommand.

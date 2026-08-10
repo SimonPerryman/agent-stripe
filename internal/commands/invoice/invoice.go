@@ -64,6 +64,10 @@ moved to POST /v1/invoices/create_preview in the pinned API version and the
 read-only chokepoint blocks POST; this is out of scope for v1 (read-only) and
 is v2 work.
 
+Connect: subscription billing run on a connected account lives on that
+account's books. Pass --stripe-account acct_... (global) to read it. An
+invoice on the platform for a Connect flow is the destination-charge case.
+
 Help: usage | help | -h | --help`
 
 func Run(ctx context.Context, opts *cli.GlobalOpts, args []string) error {

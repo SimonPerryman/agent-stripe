@@ -45,6 +45,9 @@ Streaming: pass --stream (top-level) on list to emit NDJSON over pages until
 Recommended --expand-stripe paths:
   subscription, customer, phases.items.price.product
 
+Connect: schedules belong to the account that owns the subscription, so a
+connected account's schedules need --stripe-account acct_... (global).
+
 Help: usage | help | -h | --help`
 
 func Run(ctx context.Context, opts *cli.GlobalOpts, args []string) error {

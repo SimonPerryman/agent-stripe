@@ -39,6 +39,21 @@ Streaming: pass --stream (top-level) on list to emit NDJSON over pages until
 --limit or exhausted. for-event drains all endpoints (typically single-digit
 counts) into a single envelope.
 
+Connect: an endpoint with a non-null 'application' (ca_...) is a Connect
+endpoint — it receives events for every account connected to that application.
+A null 'application' means an account endpoint, receiving only this account's
+own events. That field is the reliable signal; do not infer it from the URL.
+Stripe's 'connect' parameter is create/list-only and is absent from the
+response, so it cannot be read back.
+
+A connected account can also register endpoints of its own, which the platform
+cannot see: pass --stripe-account acct_... (global) to list those.
+
+Each endpoint also carries its own 'api_version', which is the version its
+consumer actually receives — frequently pinned years behind, and independent
+of the apiVersion this CLI reports. When an endpoint's payload disagrees with
+what you read here, compare those two first.
+
 Help: usage | help | -h | --help`
 
 func Run(ctx context.Context, opts *cli.GlobalOpts, args []string) error {

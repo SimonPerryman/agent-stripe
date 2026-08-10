@@ -39,6 +39,10 @@ dashboard or a dedicated tool with audit trail for refunds.
 Common --expand-stripe paths:
   charge, payment_intent, balance_transaction
 
+Connect: a refund of a direct charge lives on the connected account. Pass
+--stripe-account acct_... (global). Refunds of destination charges stay on the
+platform alongside the charge.
+
 Help: usage | help | -h | --help`
 
 func Run(ctx context.Context, opts *cli.GlobalOpts, args []string) error {
