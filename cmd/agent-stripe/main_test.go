@@ -17,7 +17,7 @@ func TestRegistryWiring(t *testing.T) {
 		"invoice", "invoice-item", "payment-intent", "payment-method",
 		"payout", "price", "product", "promotion-code", "refund", "resource",
 		"setup-intent", "subscription", "subscription-item",
-		"subscription-schedule", "transfer", "webhook-endpoint",
+		"subscription-schedule", "test-clock", "transfer", "webhook-endpoint",
 	}
 	if len(reg.Commands) != len(want) {
 		t.Errorf("expected %d commands, got %d", len(want), len(reg.Commands))

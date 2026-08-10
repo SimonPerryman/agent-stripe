@@ -50,6 +50,7 @@ var resourceRegistry = map[string]any{
 	"price":                 stripeapi.Price{},
 	"coupon":                stripeapi.Coupon{},
 	"promotion-code":        stripeapi.PromotionCode{},
+	"test-clock":            stripeapi.TestHelpersTestClock{},
 	"webhook-endpoint":      stripeapi.WebhookEndpoint{},
 	"connected-account":     stripeapi.Account{},
 	"person":                stripeapi.Person{},
@@ -92,8 +93,11 @@ var expandPathsByResource = map[string][]string{
 	// A coupon references nothing. On a promotion code the coupon is already
 	// inlined at promotion.coupon on the pinned version — nothing to expand —
 	// so only the customer restriction is worth a round-trip.
-	"coupon":            {},
-	"promotion-code":    {"customer"},
+	"coupon":         {},
+	"promotion-code": {"customer"},
+	// A test clock is flat: status, frozen_time, status_details. Nothing to
+	// expand — the objects frozen *by* it point at the clock, not the reverse.
+	"test-clock":        {},
 	"payment-method":    {"customer"},
 	"setup-intent":      {"customer", "payment_method", "latest_attempt"},
 	"setup-attempt":     {"payment_method"},
