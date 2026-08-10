@@ -86,44 +86,17 @@ func TestIntegration_ConnectedAccountSweep(t *testing.T) {
 	})
 }
 
-// TestIntegration_StripeAccountHeader proves the header actually scopes a read
-// against live Stripe: `get <acct>` on the platform and `account test` through
-// the header must describe the same account. Needs an explicitly named test
-// connected account (see the Development section of the README).
-func TestIntegration_StripeAccountHeader(t *testing.T) {
+// TestIntegration_RejectsStripeAccount confirms the platform-scoped guard
+// fires before any request leaves the process. The live Connect-header path is
+// covered by the `account test` probe in the account package.
+func TestIntegration_RejectsStripeAccount(t *testing.T) {
 	acct := os.Getenv("STRIPE_TEST_CONNECTED_ACCOUNT")
 	if acct == "" {
-		t.Skip("STRIPE_TEST_CONNECTED_ACCOUNT not set; skipping Connect header integration test")
+		t.Skip("STRIPE_TEST_CONNECTED_ACCOUNT not set; skipping Connect integration test")
 	}
-	key := os.Getenv("STRIPE_TEST_KEY")
-	if key == "" {
-		t.Skip("STRIPE_TEST_KEY not set; skipping integration test")
-	}
-
-	scoped := &cli.GlobalOpts{
-		Account:       &config.Account{Alias: "it", Mode: config.ModeTest},
-		StripeAccount: acct,
-		Client:        agentstripe.NewClient(key, "", acct, 15*time.Second),
-	}
-
-	// GET /v1/account under the header returns the *connected* account — the
-	// canonical "is this account reachable from my platform key?" probe.
-	out := captureEnvelope(t, func() error {
-		return runGet(context.Background(), scoped, []string{acct})
-	})
-	var env struct {
-		StripeAccount string `json:"stripeAccount"`
-		Data          struct {
-			ID string `json:"id"`
-		} `json:"data"`
-	}
-	if err := json.Unmarshal(out, &env); err != nil {
-		t.Fatalf("unmarshal: %v (out=%q)", err, out)
-	}
-	if env.Data.ID != acct {
-		t.Errorf("data.id = %q, want %q", env.Data.ID, acct)
-	}
-	if env.StripeAccount != acct {
-		t.Errorf("envelope stripeAccount = %q, want %q", env.StripeAccount, acct)
+	opts := integrationOpts(t)
+	opts.StripeAccount = acct
+	if err := Run(context.Background(), opts, []string{"list"}); err == nil {
+		t.Fatal("expected connected-account list to reject --stripe-account")
 	}
 }

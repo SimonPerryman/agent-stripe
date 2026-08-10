@@ -247,10 +247,17 @@ func resolveAccountAlias(flagVal string) string {
 }
 
 // resolveStripeAccount mirrors resolveAccountAlias's precedence: flag > env.
-// Deliberately no config-file default — a saved connected account would
-// reintroduce silent scoping, where a command reads different books than the
-// transcript implies. That is the exact failure the `mode` echo exists to
-// prevent, so the account scope stays per-invocation and visible.
+//
+// The env var is an ambient default, and a stale `export` can rescope a read
+// just as a saved config value would — so the envelope's `stripeAccount` echo
+// is what makes this safe, not the absence of persistence. It is there for
+// parity with AGENT_STRIPE_ACCOUNT and the project's stated preference for
+// explicit env config over implicit detection.
+//
+// There is deliberately no *config-file* default, which is a different thing:
+// config is edited once and read forever by every future invocation, including
+// ones whose author never saw the setting. An `export` at least lives and dies
+// with the shell whose transcript shows it.
 func resolveStripeAccount(flagVal string) string {
 	if flagVal != "" {
 		return flagVal
@@ -388,4 +395,25 @@ func printTopUsage(reg *Registry) {
 	}
 	b.WriteString("\nHelp: `agent-stripe <command> usage` (also: help, -h, --help) for command-specific help.\n")
 	fmt.Fprint(os.Stderr, b.String())
+}
+
+// RejectStripeAccount returns an error when --stripe-account is set on a
+// command that is platform-scoped by nature.
+//
+// The header is injected unconditionally at the transport, so without this
+// guard `application-fee list --stripe-account acct_x` quietly answers from
+// the connected account's books and returns an empty list — from which an
+// agent concludes the platform earns no fees, rather than that it asked the
+// wrong account. A silent wrong answer is worse than an error.
+func RejectStripeAccount(opts *GlobalOpts, command string) error {
+	if opts == nil || opts.StripeAccount == "" {
+		return nil
+	}
+	return &output.Error{
+		Msg: fmt.Sprintf(
+			"%s is platform-scoped; --stripe-account (%s) would read the connected account's books and return an empty or misleading result",
+			command, opts.StripeAccount),
+		Hint: "drop --stripe-account here; use it on commands that read a connected account's own objects (charge, balance, payout, event…)",
+		By:   output.FixableByAgent,
+	}
 }

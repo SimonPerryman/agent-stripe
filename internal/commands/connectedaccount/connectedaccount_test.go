@@ -3,6 +3,7 @@ package connectedaccount
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -10,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/simonperryman/agent-stripe/internal/output"
 	"github.com/simonperryman/agent-stripe/internal/testutil"
 
 	stripeapi "github.com/stripe/stripe-go/v85"
@@ -261,5 +263,30 @@ func TestList_FalseBooleansReachTheEnvelope(t *testing.T) {
 	healthy := rows[1].(map[string]any)
 	if healthy["charges_enabled"] != true {
 		t.Errorf("healthy account charges_enabled = %v, want true", healthy["charges_enabled"])
+	}
+}
+
+// The header is set unconditionally at the transport, so a platform-scoped
+// command must refuse the flag rather than answer from the wrong books.
+func TestRun_RejectsStripeAccount(t *testing.T) {
+	opts := testutil.NewOptsForAccount("http://127.0.0.1:1", "acct_x")
+	for _, sub := range []string{"list", "get", "capabilities", "persons", "external-accounts"} {
+		err := Run(context.Background(), opts, []string{sub, "acct_1"})
+		if err == nil {
+			t.Errorf("%s: expected --stripe-account to be rejected", sub)
+			continue
+		}
+		var oe *output.Error
+		if !errors.As(err, &oe) {
+			t.Errorf("%s: want *output.Error, got %T", sub, err)
+			continue
+		}
+		if oe.By != output.FixableByAgent {
+			t.Errorf("%s: fixableBy = %q, want agent", sub, oe.By)
+		}
+	}
+	// help stays reachable regardless — it makes no request.
+	if err := Run(context.Background(), opts, []string{"usage"}); err != nil {
+		t.Errorf("usage should not be gated: %v", err)
 	}
 }

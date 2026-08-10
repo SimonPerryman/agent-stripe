@@ -63,6 +63,14 @@ func Run(ctx context.Context, opts *cli.GlobalOpts, args []string) error {
 		fmt.Fprintln(os.Stderr, Usage)
 		return nil
 	}
+	// Every subcommand here names its account positionally, so the header
+	// would only ever point somewhere else. Guarded rather than ignored: a
+	// silently empty result is worse than an error.
+	if args[0] != "usage" && args[0] != "help" {
+		if err := cli.RejectStripeAccount(opts, "connected-account"); err != nil {
+			return err
+		}
+	}
 	switch args[0] {
 	case "get":
 		return runGet(ctx, opts, args[1:])

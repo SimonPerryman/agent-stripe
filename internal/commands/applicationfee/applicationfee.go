@@ -53,6 +53,14 @@ func Run(ctx context.Context, opts *cli.GlobalOpts, args []string) error {
 		fmt.Fprintln(os.Stderr, Usage)
 		return nil
 	}
+	// Application fees are the platform's revenue and only ever exist on the
+	// platform's books; scoping to a connected account returns an empty list
+	// that reads as "we earn nothing" rather than "wrong account".
+	if args[0] != "usage" && args[0] != "help" {
+		if err := cli.RejectStripeAccount(opts, "application-fee"); err != nil {
+			return err
+		}
+	}
 	switch args[0] {
 	case "get":
 		return runGet(ctx, opts, args[1:])

@@ -2,12 +2,14 @@ package applicationfee
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/simonperryman/agent-stripe/internal/output"
 	"github.com/simonperryman/agent-stripe/internal/testutil"
 )
 
@@ -91,5 +93,20 @@ func TestRun_UnknownSubcommand(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "refund") {
 		t.Errorf("error should name the bad subcommand, got %v", err)
+	}
+}
+
+func TestRun_RejectsStripeAccount(t *testing.T) {
+	opts := testutil.NewOptsForAccount("http://127.0.0.1:1", "acct_x")
+	for _, sub := range []string{"list", "get", "refunds"} {
+		err := Run(context.Background(), opts, []string{sub, "fee_1"})
+		if err == nil {
+			t.Errorf("%s: expected --stripe-account to be rejected", sub)
+			continue
+		}
+		var oe *output.Error
+		if !errors.As(err, &oe) || oe.By != output.FixableByAgent {
+			t.Errorf("%s: want agent-fixable output.Error, got %v (%T)", sub, err, err)
+		}
 	}
 }
