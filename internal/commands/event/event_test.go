@@ -1,6 +1,7 @@
 package event
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -210,14 +211,31 @@ func TestRelatedStream_LimitHardStop(t *testing.T) {
 	}
 }
 
-func TestRelatedStream_BrokenPipeNoSummary(t *testing.T) {
+// A consumer that reads the header and walks away (`| head -1`) must not turn
+// into an error: the broken pipe is swallowed and runList returns nil.
+//
+// Reading one *delimited* line is load-bearing, not stylistic. A bare
+// pr.Read into a large buffer returns whatever happens to be buffered — the
+// header alone if the reader is scheduled first, the header plus records if
+// the writer is. An earlier version of this test read that way and asserted
+// it had captured exactly one line, which made two lines (a legal outcome of
+// the code under test) an intermittent CI failure. See
+// plans/bugfix/flaky-broken-pipe-stream-test.md.
+//
+// Note what this can and cannot observe. Once the reader closes, nothing more
+// is readable, so the absence of a trailing summary line is not checkable
+// from here — it follows structurally from runRelatedStream returning at the
+// failed Write, before WriteSummary is reached. Asserting on "how much
+// happened to arrive before the close" is the proxy that was flaky; don't
+// reintroduce it.
+func TestRelatedStream_BrokenPipeExitsCleanly(t *testing.T) {
 	srv := fakeEventsServer(t, 200, func(i int) string { return "cus_target" })
 	defer srv.Close()
 
 	opts := newEventOpts(srv.URL, true)
 
-	// Swap os.Stdout for an io.Pipe whose reader we control: read the header
-	// then close, so subsequent record writes hit a broken pipe.
+	// Swap os.Stdout for a pipe whose reader we control: read the header then
+	// close, so subsequent record writes hit a broken pipe.
 	old := os.Stdout
 	pr, pw, err := os.Pipe()
 	if err != nil {
@@ -226,33 +244,21 @@ func TestRelatedStream_BrokenPipeNoSummary(t *testing.T) {
 	os.Stdout = pw
 	defer func() { os.Stdout = old }()
 
-	// Read the header line, then close the reader.
-	captured := make(chan []byte, 1)
+	captured := make(chan string, 1)
 	go func() {
-		buf := make([]byte, 4096)
-		// Read once for the header.
-		n, _ := pr.Read(buf)
-		head := append([]byte(nil), buf[:n]...)
+		line, _ := bufio.NewReader(pr).ReadString('\n')
 		_ = pr.Close()
-		// Drain anything else (shouldn't be much; closed reader will surface broken pipe on writer).
-		_, _ = io.Copy(io.Discard, pr)
-		captured <- head
+		captured <- line
 	}()
 
 	runErr := runList(context.Background(), opts, []string{"--related", "cus_target"})
 	_ = pw.Close()
-	head := <-captured
+	header := <-captured
 
 	if runErr != nil {
 		t.Fatalf("runList: expected nil on broken pipe, got %v", runErr)
 	}
-	// Captured bytes should be exactly the header — no summary line afterwards.
-	// (The reader was closed right after one Read, before the loop could write a summary.)
-	lines := strings.Split(strings.TrimRight(string(head), "\n"), "\n")
-	if len(lines) != 1 {
-		t.Fatalf("expected only header captured before close, got %d lines: %v", len(lines), lines)
-	}
-	hdr := parseLine(t, lines[0])
+	hdr := parseLine(t, strings.TrimRight(header, "\n"))
 	if hdr["stream"] != true {
 		t.Errorf("expected header with stream:true, got %v", hdr)
 	}
