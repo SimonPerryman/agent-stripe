@@ -1,6 +1,6 @@
 ---
 name: agent-stripe
-description: Read-only Stripe CLI for AI agents. Use for any read-only Stripe question — customers, charges, payment intents, refunds, disputes, balance, payouts, subscriptions, invoices, products, prices, events. This skill is read-only — it cannot create, modify, or delete anything in Stripe.
+description: Read-only Stripe CLI for AI agents. Use for any read-only Stripe question — customers, charges, payment intents, refunds, disputes, balance, payouts, subscriptions, invoices, products, prices, events, and Connect (connected accounts, application fees, and reading a connected account's data via --stripe-account). This skill is read-only — it cannot create, modify, or delete anything in Stripe.
 ---
 
 # agent-stripe
@@ -17,6 +17,8 @@ Reach for `agent-stripe` whenever the question is read-only Stripe:
 - "what's in our test-mode events feed since yesterday"
 - "what fields are on a Stripe Subscription"
 - "is this dispute still open"
+- "why can't this connected account take payments / receive payouts"
+- "where is the charge for merchant acct_… — I can't find it"
 
 Skip it when the user wants to *do* something to Stripe (create, refund, cancel, etc.). This skill cannot help with writes — direct them to the Stripe Dashboard or the Stripe CLI.
 
@@ -36,10 +38,12 @@ subscription get | list | search                         # sub_…
 invoice     get | list | search                          # in_…
 product     get | list | search                          # prod_…
 price       get | list | search                          # price_…
+connected-account get | list | capabilities | persons | external-accounts   # acct_…
+application-fee get | list | refunds                     # fee_…
 resource    describe <name> [--depth N]                  # shape discovery, no API call
 ```
 
-Global flags: `-a <alias>` · `--live` · `--full` · `--expand <fields|paths>` · `--expand-stripe <paths>` · `--stream` · `--timeout <dur>`.
+Global flags: `--account <alias>` · `--stripe-account <acct_…>` · `--live` · `--full` · `--expand <fields|paths>` · `--expand-stripe <paths>` · `--stream` · `--timeout <dur>`.
 
 `agent-stripe <command> usage` is the source of truth for flags — don't trust this file for flag-level detail; read the CLI's own help.
 
@@ -79,6 +83,44 @@ Under `--stream`, `event list --related` emits a final trailing line
 `{"_truncated":bool,"scanned":N,"matched":M}` after the records — it's the
 only command whose stream has more than `header + records`. Skip lines without
 a top-level `id` to filter it out when parsing.
+
+### Connect: which account does the object live on?
+
+`agent-stripe` can read connected accounts. Two different flags, easily confused:
+
+- `--account <alias>` — which **credential** to authenticate with (a local keychain alias).
+- `--stripe-account acct_…` — whose **books** that credential reads (the `Stripe-Account` header).
+
+The distinction that matters most:
+
+| Flow | Object lives on | Flag |
+|---|---|---|
+| Direct charge | connected account | `--stripe-account acct_…` |
+| Destination charge | platform, with `transfer_data.destination` | none |
+| Separate charges and transfers | charge on platform, `tr_…` to the account, joined by `transfer_group` | none for the charge |
+
+**Do not conclude an object doesn't exist because the platform can't see it.**
+A direct charge is invisible from the platform account entirely. If a `ch_…`,
+`pi_…`, or its events come back empty, try the connected account before
+reporting "not found".
+
+```
+agent-stripe connected-account list --limit 10           # find the acct_ id
+agent-stripe connected-account capabilities acct_…       # why it can't charge/pay out
+agent-stripe --stripe-account acct_… balance get         # why no payout
+agent-stripe --stripe-account acct_… charge get ch_…     # the direct charge itself
+agent-stripe --stripe-account acct_… account test        # is the account reachable at all?
+```
+
+Responses read this way echo `"stripeAccount": "acct_…"` in the envelope, so you
+can verify the scope of what you just read rather than re-deriving it.
+
+`on_behalf_of` is **not** the same thing as `--stripe-account`: it's a field set
+when the object was created, which this CLI only ever reads.
+
+`connected-account list` and `application-fee` are platform-scoped by nature —
+they enumerate *your* connected accounts and *your* revenue, so `--stripe-account`
+does nothing there.
 
 ### Find customers by email
 

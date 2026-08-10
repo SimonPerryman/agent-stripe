@@ -34,6 +34,10 @@ Cross-reference: a payout's id appears as automatic_transfer_id on related
 balance transactions, so to find what's *inside* a payout, query
 ` + "`balance transactions --payout po_...`" + ` rather than expanding here.
 
+Connect: payouts to a merchant's own bank live on the connected account, so
+reach for --stripe-account acct_... (global) here. The platform's own payout
+list only covers money moving out of the platform account.
+
 Help: usage | help | -h | --help`
 
 func Run(ctx context.Context, opts *cli.GlobalOpts, args []string) error {

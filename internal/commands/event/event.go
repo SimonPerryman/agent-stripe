@@ -44,6 +44,11 @@ Note: Stripe does not offer a Search API for events — use list with
 Streaming: pass --stream (top-level) on list to emit NDJSON over pages until
 --limit or exhausted. With --related, see the --related-specific behavior above.
 
+Connect: events are per-account. A connected account's events (including
+everything from its direct charges) are only visible with --stripe-account
+acct_... (global). If --related <id> comes back empty for an object you are
+sure exists, the wrong account is almost always why.
+
 Help: usage | help | -h | --help`
 
 func Run(ctx context.Context, opts *cli.GlobalOpts, args []string) error {

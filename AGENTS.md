@@ -31,10 +31,13 @@ internal/
 │   ├── price/
 │   ├── balance/
 │   ├── payout/
+│   ├── connectedaccount/    # Connect Accounts API (distinct from account/)
+│   ├── applicationfee/
 │   └── config/
 ├── stripe/
 │   ├── client.go            # SDK init from resolved account, pins APIVersion
 │   ├── readonly.go          # rejects any non-GET method (single chokepoint)
+│   ├── connect.go           # Stripe-Account header injection (Connect reads)
 │   └── pagination.go        # auto-pagination + --stream NDJSON mode
 ├── config/
 │   ├── store.go             # os.UserConfigDir()/agent-stripe/config.json
@@ -47,6 +50,8 @@ internal/
 ```
 
 Account resolution order: `--account` flag > `AGENT_STRIPE_ACCOUNT` env > config default.
+
+**Two kinds of "account".** `--account` selects which *credential* to use (a local keychain alias). `--stripe-account acct_…` selects *whose books* that credential reads — the Connect `Stripe-Account` header, resolved `--stripe-account` flag > `AGENT_STRIPE_STRIPE_ACCOUNT` env, with **no config-file default** (a saved default would reintroduce silent scoping, the exact failure the mode echo exists to prevent). The header is injected once at the transport (`internal/stripe/connect.go`), composed *inside* the read-only transport so the read-only guarantee stays outermost. Every command inherits Connect support from that one chokepoint — do not add per-command `Params.StripeAccount` plumbing.
 
 **Flags are long-form only.** Global and subcommand flags do not have single-letter short aliases (no `-a`, no `-e`). Long-form flags are self-documenting in transcripts, unambiguous for LLM-driven argv construction, and keep the single-letter namespace free. `usage`, `help`, `-h`, and `--help` all work at the top level and on every subcommand.
 
@@ -75,7 +80,7 @@ Account resolution order: `--account` flag > `AGENT_STRIPE_ACCOUNT` env > config
 - Use table-driven tests for anything with more than one interesting case.
 - Mock Stripe at the HTTP layer with `httptest.NewServer` + the SDK's `Backends` override — not by wrapping interfaces in app code.
 - Unit-test fixtures: hand-authored JSON in `testdata/` (readable, diffable, no recording library).
-- Integration tests hit Stripe **test mode** with a dedicated key, gated by `STRIPE_TEST_KEY` env var, skipped by default.
+- Integration tests hit Stripe **test mode** with a dedicated key, gated by `STRIPE_TEST_KEY` env var, skipped by default. Connect integration tests additionally need `STRIPE_TEST_CONNECTED_ACCOUNT=acct_…` and skip cleanly without it.
 
 ## Conventions — commands
 
@@ -88,7 +93,7 @@ Account resolution order: `--account` flag > `AGENT_STRIPE_ACCOUNT` env > config
 ## Conventions — output
 
 - All output JSON to stdout. One JSON object per command (or one-per-line under `--stream`).
-- **Response envelope:** every successful response is `{ mode, account, apiVersion, data }`. The Stripe payload always lives under `data` — never at the top level. `list`/`search` add a `page` sibling for pagination; `event list --related` adds a `scan` sibling.
+- **Response envelope:** every successful response is `{ mode, account, apiVersion, data }`, plus `stripeAccount` when the read was scoped to a connected account (`omitempty`, so platform-scoped output is unchanged). Build envelopes with `cli.EnvelopeFor(opts)` — hand-built `output.Envelope{}` literals silently omit new fields and have drifted before. The Stripe payload always lives under `data` — never at the top level. `list`/`search` add a `page` sibling for pagination; `event list --related` adds a `scan` sibling.
 - Under `--stream`, emit the envelope once as the first NDJSON line (with `stream: true` and no `data`), then one record per line. Keeps the mode tag without repeating it on every record.
 - Long string fields (over `truncation.maxLength`, default 200) are truncated with a `…` suffix and a companion `{field}Length` key. Override per-call with `--full` or `--expand <fields>`.
 - Null / empty fields are pruned by default to reduce token cost in agent context windows.
@@ -106,7 +111,8 @@ Every non-trivial change has a plan in `plans/`. Create the plan before starting
 Folder taxonomy:
 
 - `plans/v1/` — initial build, phase by phase
-- `plans/v2/` — future tiers once v1 ships
+- `plans/v2/` — second tier of read coverage
+- `plans/v3/` — third tier (Connect)
 - `plans/bugfix/` — concrete bugfixes
 - `plans/infra/` — CI, release, brew tap, skills package
 - `plans/tech-debt/` — hardening, audits, cleanup
@@ -162,5 +168,5 @@ golangci-lint run     # same linter CI runs (v2.12.2)
 
 One-liner: `test -z "$(gofmt -l .)" && go vet ./... && go build ./... && go test -race ./... && golangci-lint run`
 
-- For any change in `internal/stripe/readonly.go`, `internal/stripe/client.go`, or credential handling: also run integration tests with `STRIPE_TEST_KEY` set.
+- For any change in `internal/stripe/readonly.go`, `internal/stripe/connect.go`, `internal/stripe/client.go`, or credential handling: also run integration tests with `STRIPE_TEST_KEY` set.
 - Never commit a real API key. `~/.config/agent-stripe/` and `*.local.*` are gitignored — keep it that way.
