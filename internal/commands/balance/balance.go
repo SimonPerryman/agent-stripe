@@ -23,12 +23,21 @@ const Usage = `balance — read Stripe balance (snapshot) and balance transactio
 Subcommands:
   get                                       Current available / pending balance.
                                             Snapshot, not historical.
-  transactions [--type T] [--payout PO] [--currency CCY]
+  transaction <id>                          Fetch one ledger row (txn_...).
+  transactions [--type T] [--payout PO] [--currency CCY] [--source ID]
                [--created-gt T] [--created-lt T] [--limit N]
                [--starting-after TXN]       List balance transactions (ledger).
 
+Singular vs plural, as with 'transfer reversal' / 'transfer reversals':
+'transaction' fetches one row by id, 'transactions' lists them.
+
 The --type filter on transactions is high-signal: "charge", "refund",
 "payout", "stripe_fee", "application_fee" are common starting points.
+
+--source goes the other way: given an object (ch_..., fee_..., tr_..., po_...),
+it returns the ledger rows that object produced. That answers "what did this
+charge actually settle to" without scanning a date range and filtering
+client-side.
 
 Note: Stripe does not offer a Search API for balance transactions — use
 transactions with --type / --payout / --currency / --created-gt/lt filters.
@@ -55,6 +64,8 @@ func Run(ctx context.Context, opts *cli.GlobalOpts, args []string) error {
 	switch args[0] {
 	case "get":
 		return runGet(ctx, opts, args[1:])
+	case "transaction":
+		return runTransaction(ctx, opts, args[1:])
 	case "transactions":
 		return runTransactions(ctx, opts, args[1:])
 	case "usage", "help":
@@ -63,7 +74,7 @@ func Run(ctx context.Context, opts *cli.GlobalOpts, args []string) error {
 	}
 	return &output.Error{
 		Msg:  fmt.Sprintf("unknown balance subcommand %q", args[0]),
-		Hint: cli.SubcommandHint(args[0], []string{"get", "transactions"}),
+		Hint: cli.SubcommandHint(args[0], []string{"get", "transaction", "transactions"}),
 		By:   output.FixableByAgent,
 	}
 }
@@ -81,12 +92,29 @@ func runGet(ctx context.Context, opts *cli.GlobalOpts, args []string) error {
 	return cli.EmitSingle(opts, b)
 }
 
+// runTransaction fetches a single ledger row. Without it, spot-checking one
+// txn_ means re-listing the whole payout it belongs to and filtering
+// client-side — the id is right there on the object that produced it.
+func runTransaction(ctx context.Context, opts *cli.GlobalOpts, args []string) error {
+	if len(args) != 1 {
+		return errors.New("usage: balance transaction <id>")
+	}
+	params := &stripeapi.BalanceTransactionRetrieveParams{}
+	params.Expand = agentstripe.ExpandSlice(opts.ExpandStripe)
+	txn, err := opts.Client.V1BalanceTransactions.Retrieve(ctx, args[0], params)
+	if err != nil {
+		return err
+	}
+	return cli.EmitSingle(opts, txn)
+}
+
 func runTransactions(ctx context.Context, opts *cli.GlobalOpts, args []string) error {
 	fs := flag.NewFlagSet("balance transactions", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	typ := fs.String("type", "", "filter by transaction type (charge, refund, payout, stripe_fee, ...)")
 	payout := fs.String("payout", "", "filter by payout id (po_...)")
 	currency := fs.String("currency", "", "filter by currency (lowercase ISO, e.g. usd)")
+	source := fs.String("source", "", "filter by originating object id (ch_..., fee_..., tr_..., po_...)")
 	createdGT := fs.Int64("created-gt", 0, "filter: created > unix seconds")
 	createdLT := fs.Int64("created-lt", 0, "filter: created < unix seconds")
 	limit := fs.Int("limit", agentstripe.DefaultMaxResults, "max items to return (cap)")
@@ -106,6 +134,9 @@ func runTransactions(ctx context.Context, opts *cli.GlobalOpts, args []string) e
 	}
 	if *currency != "" {
 		params.Currency = stripeapi.String(*currency)
+	}
+	if *source != "" {
+		params.Source = stripeapi.String(*source)
 	}
 	if *startingAfter != "" {
 		params.StartingAfter = stripeapi.String(*startingAfter)

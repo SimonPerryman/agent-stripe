@@ -1,6 +1,6 @@
 # Phase 14 — Connect: the reads phase 13 left out
 
-Status: draft
+Status: done
 
 ## Goal
 
@@ -103,3 +103,28 @@ the building block when that day comes.
 - 2026-08-10 — Spiked raw passthrough; downgraded it from "architectural" to a
   contained change, then split it out to `03-api-version-raw.md` so this file
   is purely the additive reads. No open questions remain here.
+- 2026-08-10 — Implemented §1–§6 on `feat/connect-reads-phase-14`, one commit
+  per item (§1 and §2 share a commit — both are the balance package, and the
+  edits interleave in the same file). §7 deliberately untouched.
+
+  Deviations and findings worth carrying forward:
+
+  - **§1 is `balance transaction <id>`, not `balance transaction get <id>`.**
+    Three-level nesting has no precedent here, and `transfer reversal` /
+    `transfer reversals` already establishes singular-fetches-one,
+    plural-lists. `balance transaction` / `balance transactions` is the same
+    pair.
+  - **§5: no expandable `coupon` on a promotion code.** On the pinned version
+    (2026-04-22.dahlia) the coupon is inlined at `promotion.coupon` — there is
+    no top-level field to expand. The first draft advertised
+    `--expand-stripe coupon` and
+    `TestExpandPathsResolveAgainstSDKStructs` rejected it, which is exactly the
+    silent-null failure that test exists to catch. `promotion-code list
+    --coupon <id>` still filters the other way.
+  - **§5: `--active` is two flags, `--active` / `--inactive`.** Stripe's filter
+    is tri-state and a single bool cannot express "unset" without the caller
+    knowing to omit it; passing both is rejected locally.
+  - Registry, `resource describe` entries, expand-path curation, README and
+    SKILL.md all updated alongside. `main_test.go`'s command-count assertion
+    and `TestEveryNetworkCommandDocumentsConnect` both caught omissions during
+    the work — the guard tests are earning their keep.

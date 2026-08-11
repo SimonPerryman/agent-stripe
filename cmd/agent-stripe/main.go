@@ -16,6 +16,7 @@ import (
 	"github.com/simonperryman/agent-stripe/internal/commands/charge"
 	"github.com/simonperryman/agent-stripe/internal/commands/checkoutsession"
 	"github.com/simonperryman/agent-stripe/internal/commands/connectedaccount"
+	"github.com/simonperryman/agent-stripe/internal/commands/coupon"
 	"github.com/simonperryman/agent-stripe/internal/commands/customer"
 	"github.com/simonperryman/agent-stripe/internal/commands/dispute"
 	"github.com/simonperryman/agent-stripe/internal/commands/event"
@@ -26,12 +27,14 @@ import (
 	"github.com/simonperryman/agent-stripe/internal/commands/payout"
 	"github.com/simonperryman/agent-stripe/internal/commands/price"
 	"github.com/simonperryman/agent-stripe/internal/commands/product"
+	"github.com/simonperryman/agent-stripe/internal/commands/promotioncode"
 	"github.com/simonperryman/agent-stripe/internal/commands/refund"
 	"github.com/simonperryman/agent-stripe/internal/commands/resource"
 	"github.com/simonperryman/agent-stripe/internal/commands/setupintent"
 	"github.com/simonperryman/agent-stripe/internal/commands/subscription"
 	"github.com/simonperryman/agent-stripe/internal/commands/subscriptionitem"
 	"github.com/simonperryman/agent-stripe/internal/commands/subscriptionschedule"
+	"github.com/simonperryman/agent-stripe/internal/commands/testclock"
 	"github.com/simonperryman/agent-stripe/internal/commands/transfer"
 	"github.com/simonperryman/agent-stripe/internal/commands/webhookendpoint"
 )
@@ -70,6 +73,9 @@ func buildRegistry() *cli.Registry {
 			"invoice":               {Run: invoice.Run, Usage: invoice.Usage},
 			"invoice-item":          {Run: invoiceitem.Run, Usage: invoiceitem.Usage},
 			"product":               {Run: product.Run, Usage: product.Usage},
+			"coupon":                {Run: coupon.Run, Usage: coupon.Usage},
+			"promotion-code":        {Run: promotioncode.Run, Usage: promotioncode.Usage},
+			"test-clock":            {Run: testclock.Run, Usage: testclock.Usage},
 			"price":                 {Run: price.Run, Usage: price.Usage},
 			"webhook-endpoint":      {Run: webhookendpoint.Run, Usage: webhookendpoint.Usage},
 			"resource":              {Run: resource.Run, Usage: resource.Usage, NoAccount: true}, // pure reflection, no Stripe call

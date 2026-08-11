@@ -31,13 +31,16 @@ charge      get | list | search                          # ch_…
 payment-intent  get | list | search                      # pi_…
 refund      get | list                                   # re_…
 dispute     get | list                                   # dp_…
-balance     get | transactions                           # ledger entries
+balance     get | transaction <txn_…> | transactions      # ledger entries
 payout      get | list                                   # po_…
 event       get | list [--related <id>]                  # evt_…
 subscription get | list | search                         # sub_…
 invoice     get | list | search                          # in_…
 product     get | list | search                          # prod_…
 price       get | list | search                          # price_…
+coupon      get | list                                   # discount definition
+promotion-code  get | list [--code LAUNCH20]             # promo_…
+test-clock  get | list                                   # clock_… (test mode only)
 connected-account get | list | capabilities | persons | external-accounts   # acct_…
 application-fee get | list | refunds                     # fee_…
 resource    describe <name> [--depth N]                  # shape discovery, no API call
@@ -121,6 +124,49 @@ when the object was created, which this CLI only ever reads.
 `connected-account list` and `application-fee` are platform-scoped by nature —
 they enumerate *your* connected accounts and *your* revenue, so `--stripe-account`
 does nothing there.
+
+### "No such coupon" on a connected account
+
+Coupons and promotion codes are **per-account** and do not inherit from the
+platform. A coupon created on the platform and referenced from a connected
+account's subscription fails with `No such coupon`, and the diagnosis is just
+reading it from both sides:
+
+```
+agent-stripe coupon get LAUNCH20                             # platform
+agent-stripe --stripe-account acct_… coupon get LAUNCH20     # the account
+```
+
+A hit on one and a 404 on the other is the answer — each account needs its own.
+To find a code by the string a customer typed, `promotion-code list --code
+LAUNCH20` (there is no Search API for either resource).
+
+### "This ledger row / this bank line item"
+
+```
+agent-stripe balance transaction txn_…                 # one row, no re-listing a payout
+agent-stripe balance transactions --source ch_…        # what rows did this object produce?
+agent-stripe payout list --arrival-date-gt … --arrival-date-lt …
+```
+
+Reconcile payouts on **arrival date**, not `created` — `created` is when Stripe
+opened the payout, `arrival_date` is when the money lands, and a bank statement
+matches the latter.
+
+### A test clock that looks stuck
+
+Two causes look identical from outside: the clock never advanced, or it advanced
+and the webhook never fired. The clock itself separates them.
+
+```
+agent-stripe test-clock get clock_…
+```
+
+`status: advancing` means objects have not caught up yet; `ready` means the
+advance finished and the problem is downstream; `internal_failure` means the
+clock is dead. Compare `frozen_time` against the subscription's
+`current_period_end` before concluding anything is wrong. Advancing a clock is a
+write — out of scope here, use the Stripe CLI or Dashboard.
 
 ### Find customers by email
 

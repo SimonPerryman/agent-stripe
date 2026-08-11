@@ -48,6 +48,9 @@ var resourceRegistry = map[string]any{
 	"invoice-line-item":     stripeapi.InvoiceLineItem{},
 	"product":               stripeapi.Product{},
 	"price":                 stripeapi.Price{},
+	"coupon":                stripeapi.Coupon{},
+	"promotion-code":        stripeapi.PromotionCode{},
+	"test-clock":            stripeapi.TestHelpersTestClock{},
 	"webhook-endpoint":      stripeapi.WebhookEndpoint{},
 	"connected-account":     stripeapi.Account{},
 	"person":                stripeapi.Person{},
@@ -87,13 +90,21 @@ var expandPathsByResource = map[string][]string{
 	"invoice-line-item":     {"pricing.price_details.price"},
 	"product":               {"default_price"},
 	"price":                 {"product"},
-	"payment-method":        {"customer"},
-	"setup-intent":          {"customer", "payment_method", "latest_attempt"},
-	"setup-attempt":         {"payment_method"},
-	"checkout-session":      {"payment_intent", "subscription", "setup_intent", "customer", "line_items"},
-	"webhook-endpoint":      {},
-	"connected-account":     {"external_accounts", "settings", "requirements"},
-	"application-fee":       {"charge", "balance_transaction", "refunds", "originating_transaction"},
+	// A coupon references nothing. On a promotion code the coupon is already
+	// inlined at promotion.coupon on the pinned version — nothing to expand —
+	// so only the customer restriction is worth a round-trip.
+	"coupon":         {},
+	"promotion-code": {"customer"},
+	// A test clock is flat: status, frozen_time, status_details. Nothing to
+	// expand — the objects frozen *by* it point at the clock, not the reverse.
+	"test-clock":        {},
+	"payment-method":    {"customer"},
+	"setup-intent":      {"customer", "payment_method", "latest_attempt"},
+	"setup-attempt":     {"payment_method"},
+	"checkout-session":  {"payment_intent", "subscription", "setup_intent", "customer", "line_items"},
+	"webhook-endpoint":  {},
+	"connected-account": {"external_accounts", "settings", "requirements"},
+	"application-fee":   {"charge", "balance_transaction", "refunds", "originating_transaction"},
 	// person / capability / fee-refund are small, self-contained shapes with
 	// nothing worth expanding.
 	"person":     {},

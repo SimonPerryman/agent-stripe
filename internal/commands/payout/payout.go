@@ -21,11 +21,18 @@ const Usage = `payout — read Stripe payouts
 Subcommands:
   get <id>                                  Fetch one payout (po_...)
   list [--status S] [--destination D] [--created-gt T] [--created-lt T]
+       [--arrival-date-gt T] [--arrival-date-lt T]
        [--limit N] [--starting-after PO]    List payouts (cursor-paginated)
                                             --status: pending|paid|failed|canceled
 
+Reconciling against a bank statement? Filter on --arrival-date-gt/-lt, not
+--created-gt/lt. created is when Stripe opened the payout; arrival_date is when
+the money lands in the bank account, and the two routinely fall on different
+days (and different weeks over a holiday). A bank line item is matched by the
+latter.
+
 Note: Stripe does not offer a Search API for payouts — use list with
---status / --destination / --created-gt/lt filters.
+--status / --destination / --created-gt/lt / --arrival-date-gt/lt filters.
 
 Streaming: pass --stream (top-level) on list to emit NDJSON over pages until
 --limit or exhausted.
@@ -81,6 +88,8 @@ func runList(ctx context.Context, opts *cli.GlobalOpts, args []string) error {
 	destination := fs.String("destination", "", "filter by external account id")
 	createdGT := fs.Int64("created-gt", 0, "filter: created > unix seconds")
 	createdLT := fs.Int64("created-lt", 0, "filter: created < unix seconds")
+	arrivalGT := fs.Int64("arrival-date-gt", 0, "filter: arrival_date > unix seconds (when the money lands, not when Stripe opened the payout)")
+	arrivalLT := fs.Int64("arrival-date-lt", 0, "filter: arrival_date < unix seconds")
 	limit := fs.Int("limit", agentstripe.DefaultMaxResults, "max items to return (cap)")
 	startingAfter := fs.String("starting-after", "", "cursor: po_... id from previous page")
 	if err := fs.Parse(args); err != nil {
@@ -108,6 +117,16 @@ func runList(ctx context.Context, opts *cli.GlobalOpts, args []string) error {
 			rq.LesserThan = *createdLT
 		}
 		params.CreatedRange = rq
+	}
+	if *arrivalGT > 0 || *arrivalLT > 0 {
+		rq := &stripeapi.RangeQueryParams{}
+		if *arrivalGT > 0 {
+			rq.GreaterThan = *arrivalGT
+		}
+		if *arrivalLT > 0 {
+			rq.LesserThan = *arrivalLT
+		}
+		params.ArrivalDateRange = rq
 	}
 
 	if opts.Stream {

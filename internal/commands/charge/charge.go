@@ -20,8 +20,11 @@ const Usage = `charge — read Stripe charges
 
 Subcommands:
   get <id>                                  Fetch one charge by id (ch_...)
-  list [--customer C] [--payment-intent PI] [--created-gt T] [--created-lt T]
+  list [--customer C] [--payment-intent PI] [--transfer-group G]
+       [--created-gt T] [--created-lt T]
        [--limit N] [--starting-after CH]    List charges (cursor-paginated)
+                                            --transfer-group is capped by Stripe
+                                            at 100 charges per group
   search --query <q> [--limit N] [--page T] Stripe Search (eventual consistency
                                             ~1 min lag; --page is the opaque
                                             next_page token, NOT a charge id)
@@ -55,6 +58,10 @@ Connect: where a charge lives depends on how it was created.
 Looking for a direct charge from the platform and finding nothing does NOT
 mean the charge does not exist. Check transfer_data.destination, on_behalf_of,
 and application_fee_amount to tell the two apart.
+
+--transfer-group is the join key across the legs of a split payment, and the
+only one that survives when a flow stops emitting transfers. Pair it with
+'transfer list --transfer-group G' to see both sides of the same group.
 
 Help: usage | help | -h | --help`
 
@@ -99,6 +106,7 @@ func runList(ctx context.Context, opts *cli.GlobalOpts, args []string) error {
 	fs.SetOutput(io.Discard)
 	customer := fs.String("customer", "", "filter by customer id (cus_...)")
 	paymentIntent := fs.String("payment-intent", "", "filter by payment intent id (pi_...)")
+	transferGroup := fs.String("transfer-group", "", "filter by transfer_group (Stripe caps this at 100 charges)")
 	createdGT := fs.Int64("created-gt", 0, "filter: created > unix seconds")
 	createdLT := fs.Int64("created-lt", 0, "filter: created < unix seconds")
 	limit := fs.Int("limit", agentstripe.DefaultMaxResults, "max items to return (cap)")
@@ -115,6 +123,9 @@ func runList(ctx context.Context, opts *cli.GlobalOpts, args []string) error {
 	}
 	if *paymentIntent != "" {
 		params.PaymentIntent = stripeapi.String(*paymentIntent)
+	}
+	if *transferGroup != "" {
+		params.TransferGroup = stripeapi.String(*transferGroup)
 	}
 	if *startingAfter != "" {
 		params.StartingAfter = stripeapi.String(*startingAfter)

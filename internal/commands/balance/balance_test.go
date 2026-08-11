@@ -111,6 +111,7 @@ func TestBalanceTransactions_FiltersPassthrough(t *testing.T) {
 		"--type", "charge",
 		"--payout", "po_1",
 		"--currency", "usd",
+		"--source", "ch_1",
 		"--created-gt", "100",
 		"--created-lt", "200",
 		"--starting-after", "txn_x",
@@ -119,9 +120,49 @@ func TestBalanceTransactions_FiltersPassthrough(t *testing.T) {
 	if err := runTransactions(context.Background(), opts, args); err != nil {
 		t.Fatalf("runTransactions: %v", err)
 	}
-	for _, want := range []string{"type=charge", "payout=po_1", "currency=usd", "created[gt]=100", "created[lt]=200", "starting_after=txn_x", "limit=5"} {
+	for _, want := range []string{"type=charge", "payout=po_1", "currency=usd", "source=ch_1", "created[gt]=100", "created[lt]=200", "starting_after=txn_x", "limit=5"} {
 		if !contains(gotQuery, want) {
 			t.Errorf("expected %q in query, got %q", want, gotQuery)
+		}
+	}
+}
+
+func TestBalanceTransaction_GetsOneRow(t *testing.T) {
+	var gotPath string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		_, _ = io.WriteString(w, `{"id":"txn_1","object":"balance_transaction","amount":1000,"fee":59,"net":941,"currency":"usd"}`)
+	}))
+	defer srv.Close()
+
+	opts := &cli.GlobalOpts{
+		Account: &config.Account{Alias: "test", Mode: config.ModeTest},
+		Client:  agentstripe.NewClient("sk_test_fake", srv.URL, "", 5*time.Second),
+	}
+	env := captureEnvelope(t, func() error {
+		return runTransaction(context.Background(), opts, []string{"txn_1"})
+	})
+
+	if gotPath != "/v1/balance_transactions/txn_1" {
+		t.Errorf("path = %q, want /v1/balance_transactions/txn_1", gotPath)
+	}
+	if _, hasPage := env["page"]; hasPage {
+		t.Error("expected no page sibling on a single-object read")
+	}
+	data, ok := env["data"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected data to be an object, got %T", env["data"])
+	}
+	if data["id"] != "txn_1" {
+		t.Errorf("data.id = %v, want txn_1", data["id"])
+	}
+}
+
+func TestBalanceTransaction_RejectsWrongArgCount(t *testing.T) {
+	opts := &cli.GlobalOpts{Account: &config.Account{Alias: "test", Mode: config.ModeTest}}
+	for _, args := range [][]string{nil, {"txn_1", "txn_2"}} {
+		if err := runTransaction(context.Background(), opts, args); err == nil {
+			t.Errorf("args %v: expected error", args)
 		}
 	}
 }
